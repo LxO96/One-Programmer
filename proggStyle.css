@@ -1,0 +1,167 @@
+body {
+	margin: 0;
+}
+header {
+	background-color: #666;
+	padding: 0px;
+	text-align: center;
+	font-size: 2.4em;
+	color: white;
+	width: 100%;
+}
+#drop-area {
+	border: 2px dashed #ccc;
+	border-radius: 20px;
+	width: 90%;
+	font-family: sans-serif;
+	margin: 10% auto;
+	padding: 20px;
+}
+#drop-area.highlight {
+	border-color: purple;
+}
+p {
+	margin-top: 0;
+}
+.my-form {
+	margin-bottom: 10px;
+}
+#gallery {
+	margin-top: 10px;
+}
+#gallery img {
+	width: 150px;
+	margin-bottom: 10px;
+	margin-right: 10px;
+	vertical-align: middle;
+}
+.button {
+	display: inline-block;
+	padding: 10px;
+	background: #ccc;
+	cursor: pointer;
+	border-radius: 5px;
+	border: 1px solid #ccc;
+}
+.button:hover {
+	background: #ddd;
+}
+
+#graphbox{
+	margin: 2%;
+	padding: 5%;
+	background-color: #eaeaea;
+}
+
+input[type=range]
+{
+    -webkit-appearance: slider-vertical; /* WebKit */
+    width: 1.6666667%;
+    height: 30em;
+	
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 1px;
+  width: 1px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+div[id^="in"]{
+	margin:0;
+	background-color: rgb(253, 253, 253);
+}
+
+div[id^="profile-"]{
+	margin:2% 0%;
+	padding: 2%;
+	position: relative;
+}
+
+p{
+	display: inline-block;
+}
+
+#settingNum{
+	display: inline-block;
+}
+
+h1{
+	user-select: none;
+}
+
+input[type="range" i] {
+	margin: 0 auto;
+	padding:0;
+}
+
+hr{
+	position:absolute;
+	width: 98.333%;
+	z-index: 3;
+	margin: 0;
+	pointer-events: none;
+	border: 1px solid rgba(102, 102, 102, 0.568);
+}
+hr[id$="1"],h3[id$="1"]{
+	top: 0;
+}
+hr[id$="2"],h3[id$="2"]{
+	top:calc(90%/10);
+}
+hr[id$="3"],h3[id$="3"]{
+	top:calc(90%/10*2);
+}
+hr[id$="4"],h3[id$="4"]{
+	top:calc(90%/10*3);
+}
+hr[id$="5"],h3[id$="5"]{
+	top:calc(90%/10*4);
+}
+hr[id$="6"],h3[id$="6"]{
+	top:calc(90%/10*5);
+}
+hr[id$="7"],h3[id$="7"]{
+	top:calc(90%/10*6);
+}
+hr[id$="8"],h3[id$="8"]{
+	top:calc(90%/10*7);
+}
+hr[id$="9"],h3[id$="9"]{
+	top:calc(90%/10*8);
+}
+hr[id$="10"],h3[id$="10"]{
+	top:calc(90%/10*9);
+}
+hr[id$="11"],h3[id$="11"]{
+	top:calc(90%);
+}
+
+
+div[id^="rangeBoxes"]{
+	position: relative;
+	margin: 2% auto ;
+	width: 90%;
+}
+div[id^="vLine"]{
+	pointer-events: none;
+	position: absolute;
+	height: 100%;
+	border-left: 2px solid rgba(58, 49, 49, 0.473);
+	z-index: 2;
+	top: 0;
+}
+
+h3[id^="barText"]{
+	pointer-events: none;
+	position: absolute;
+	display: inline-block;
+	margin: -0.7em 0 0 0 ;
+	text-align: right;
+    width: 10%;
+    left: -1.2em;
+	mix-blend-mode: multiply;
+	color: rgb(163, 163, 163);
+}

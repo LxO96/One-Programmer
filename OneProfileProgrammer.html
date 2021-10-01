@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>One Profile Programmer</title>
+<script type="text/javascript" src="programmer.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.5.1/chart.js" ></script>
+<link rel="stylesheet" href="proggStyle.css">
+</head>
+
+<body>
+<header>
+  <h2>Crem One Programmer</h2>
+</header>
+<div id="drop-area">
+  <form class="my-form">
+    <p>Upload multiple files with the file dialog or by dragging and dropping images onto the dashed region</p>
+    <input type="file" id="fileElem" accept=".txt" style="display: none">
+    <label class="button" for="fileElem">Select some files</label>
+  </form>
+</div>
+
+<div id="graphbox">
+  <canvas id="myChart" width="600" height="350"></canvas>
+</div>
+<div id="setDiv">
+  <p>Smoothness: </p>
+  <input type="number" id="settingNum" value="20" min="1"/>
+</div>
+
+<div id="putsDiv">
+</div>
+
+<input type="button" id="bigOutButton" value="WriteOut"/>
+<a download="info.txt" id="downloadlink" style="display: none">Download</a>
+</body>
+</html>
