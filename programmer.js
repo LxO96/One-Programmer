@@ -148,11 +148,13 @@ function profileInputUpdate() {
 	profile.name = name;
 	profile.volume = volume;
 	profile.time = time;
-	profile.volLim = volLim;
+	profile.volLim = volLim ? 1 : 0;
+
+	document.getElementById('timeBox').value = time;
 
 	if (volLim) {
 		for (let x = volume; x < 240; x++) {
-			profile.pressureArray[x] = 0.0;
+			profile.pressureArray[x] = "0.0";
 		}
 	}
 
