@@ -249,6 +249,68 @@ function drawCanvas(profileIndex) {
 	ctx.restore();
 }
 
+function applySmoothPaint(profileIndex, centerIdx, value, vol) {
+	const smothVal = parseInt(document.getElementById('settingNum').value) * 4;
+	const half = Math.floor(smothVal / 2);
+	const profile = activeProfiles[profileIndex];
+
+	for (let s = -half; s <= half; s++) {
+		const i = centerIdx + s;
+		if (i < 0 || i >= vol) continue;
+		const indexDiff = Math.abs(s);
+		const adjustmentVal = (indexDiff * -2 / smothVal + 1);
+		const current = parseFloat(profile.pressureArray[i]);
+		let newVal = current + (value - current) * adjustmentVal;
+		newVal = Math.max(0, Math.min(10, Math.round(newVal * 10) / 10));
+		profile.pressureArray[i] = newVal;
+	}
+}
+
+function startPaint(e) {
+	isPainting = true;
+	lastPaintIndex = -1;
+	continuePaint(e);
+}
+
+function continuePaint(e) {
+	if (!isPainting) return;
+	const canvas = e.currentTarget;
+	const rect = canvas.getBoundingClientRect();
+	const scaleX = canvas.width / rect.width;
+	const scaleY = canvas.height / rect.height;
+	const x = (e.clientX - rect.left) * scaleX;
+	const y = (e.clientY - rect.top) * scaleY;
+
+	const profile = activeProfiles[activeProfileIndex];
+	const vol = Math.ceil(parseInt(profile.volume));
+
+	const idx = Math.max(0, Math.min(vol - 1, Math.round((x / canvas.width) * (vol - 1))));
+	const pressure = Math.max(0, Math.min(10, (1 - y / canvas.height) * 10));
+
+	if (lastPaintIndex >= 0 && lastPaintIndex !== idx) {
+		const startIdx = Math.min(lastPaintIndex, idx);
+		const endIdx = Math.max(lastPaintIndex, idx);
+		for (let i = startIdx; i <= endIdx; i++) {
+			const t = (endIdx === startIdx) ? 1 : (i - startIdx) / (endIdx - startIdx);
+			const interpPressure = lastPaintValue + (pressure - lastPaintValue) * t;
+			applySmoothPaint(activeProfileIndex, i, interpPressure, vol);
+		}
+	} else {
+		applySmoothPaint(activeProfileIndex, idx, pressure, vol);
+	}
+
+	lastPaintIndex = idx;
+	lastPaintValue = pressure;
+
+	drawCanvas(activeProfileIndex);
+	graphIt(activeProfiles);
+}
+
+function endPaint() {
+	isPainting = false;
+	lastPaintIndex = -1;
+}
+
 //function fixranges sets range limits and adds listners to neccesary ranges and textfeilds
 function fixranges() {
 	let ranges = document.querySelectorAll('[id^="in"]');
