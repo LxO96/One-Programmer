@@ -431,17 +431,17 @@ function writeranges(profiles) {
 	}
 }
 
-function getFileVersion(versionVal = -1.0) {
-	if (versionVal == -1) {
-		versionVal = document.getElementById("fileVersion").value;
-	}
-	if (versionVal > 1.5) {
-		versionVal = 2.0;
-	} else {
-		versionVal = 1.0;
-	}
-	document.getElementById("fileVersion").value = versionVal;
-	document.getElementById("outputFileVerson").innerHTML = versionVal;
+function getFileVersion(versionVal) {
+	if (versionVal === undefined) versionVal = fileVersionValue;
+	fileVersionValue = versionVal > 1.5 ? 2 : 1;
+	document.getElementById('ver1').classList.toggle('active', fileVersionValue === 1);
+	document.getElementById('ver2').classList.toggle('active', fileVersionValue === 2);
+}
+
+function setFileVersion(v) {
+	fileVersionValue = v;
+	document.getElementById('ver1').classList.toggle('active', v === 1);
+	document.getElementById('ver2').classList.toggle('active', v === 2);
 }
 
 
@@ -795,27 +795,20 @@ function getTextFile(fileVersion = 1) {
 }
 
 function writeOut() {
-	console.debug("writing Out")
-	const versionVal = document.getElementById("fileVersion").value;
-	let finishedFile = getTextFile(versionVal);
-
+	console.debug("writing Out");
+	let finishedFile = getTextFile(fileVersionValue);
 
 	var file = new Blob([finishedFile], { type: 'text/plain; charset=utf-8' });
-	if (window.navigator.msSaveOrOpenBlob) // IE10+
-		window.navigator.msSaveOrOpenBlob(file, "IMPONE");
-	else { // Others
-		var a = document.createElement("a"),
-			url = URL.createObjectURL(file);
-		a.href = url;
-		a.download = "IMPONE";
-		document.body.appendChild(a);
-		a.click();
-		setTimeout(function () {
-			document.body.removeChild(a);
-			window.URL.revokeObjectURL(url);
-		}, 0);
-	}
+	var a = document.createElement("a");
+	var url = URL.createObjectURL(file);
+	a.href = url;
+	a.download = "IMPONE";
+	document.body.appendChild(a);
+	a.click();
+	setTimeout(function() {
+		document.body.removeChild(a);
+		window.URL.revokeObjectURL(url);
+	}, 0);
 
 	console.debug(finishedFile);
-	console.debug(activeProfiles);
 }
