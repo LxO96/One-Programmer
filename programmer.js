@@ -20,7 +20,7 @@ for (let s = 0; s < 61; s++) {
 	labelarray[s] = s * 4;
 }
 
-function addElements() {
+function addElements() { 
 	
 	for (let n = 0; n < 5; n++) {
 		const newHeading = document.createElement('h1');
