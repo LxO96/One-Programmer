@@ -1,10 +1,11 @@
 let emptyProfiles = [];
-for (let ii =0; ii<5;ii++){
+for (let ii = 0; ii < 5; ii++) {
 	emptyProfiles.push({
-		name:'test'+ (ii+1),
+		name: 'test' + (ii + 1),
 		volume: 240,
 		time: 0,
-		pressureArray: Array(60).fill("0.0"),
+		volLim: 0,
+		pressureArray: Array(240).fill("0.0"),
 	})
 }
 
@@ -12,256 +13,340 @@ for (let ii =0; ii<5;ii++){
 var hasGraphed = 0;
 
 var readProfiles = [];
-var activeProfiles=emptyProfiles;
+var activeProfiles = emptyProfiles;
 
 
-var labelarray = Array(60).fill(0);
-for (let s = 0; s < 61; s++) {
-	labelarray[s] = s * 4;
+var labelarray = Array(240).fill(0);
+for (let s = 0; s < 240; s++) {
+	labelarray[s] = s + 1;
 }
 
-function addElements() { 
-	
+var activeProfileIndex = 0;
+const PROFILE_COLORS = ['#FFBE86', '#FFE156', '#33E9CE', '#FFB5C2', '#3777FF'];
+var isPainting = false;
+var lastPaintIndex = -1;
+var lastPaintValue = 0;
+var fileVersionValue = 2;
+
+function addElements() {
+	const profileList = document.getElementById('profile-list');
+	const canvasArea = document.getElementById('canvas-area');
+	const editorHeader = document.getElementById('editor-header');
+
 	for (let n = 0; n < 5; n++) {
-		const newHeading = document.createElement('h1');
-		const newTextbox = Object.assign(document.createElement('input'),{
-			id: 'nameBox'+(n+1),
-			type:'text',
-			placeholder:'name',
-			pattern: "[A-Z ]+",
-			title: 'Allcaps',
-		})
-		const newVolbox = Object.assign(document.createElement('input'),{
-			id: 'volBox'+(n+1),
-			type:'number',
-			placeholder: 'volume',
-			value: '240',
-			max:'240',
-			min:'4'
-		})
-		const newTimbox = Object.assign(document.createElement('input'),{
-			id: 'timeBox'+(n+1),
-			type:'number',
-			placeholder: 'time',
-			value: '30',
-			min:'0'
-		})
+		// Profile list item
+		const item = document.createElement('div');
+		item.className = 'profile-item' + (n === 0 ? ' active' : '');
+		item.id = 'profile-item-' + (n + 1);
 
+		const dot = Object.assign(document.createElement('div'), { className: 'profile-dot' });
+		dot.style.background = PROFILE_COLORS[n];
 
-		var textToAdd = document.createTextNode('Profile '+(n+1));
-		newHeading.appendChild(textToAdd);
-		const newThing = Object.assign(document.createElement('div'), {
-			id: 'profile' + (n+1),
+		const nameSpan = Object.assign(document.createElement('span'), {
+			className: 'profile-name',
+			id: 'profile-list-name-' + (n + 1),
+			textContent: activeProfiles[n].name || ('Profile ' + (n + 1)),
 		});
-		newThing.appendChild(newHeading);
-		newThing.appendChild(newTextbox);
-		newThing.appendChild(newVolbox);
-		newThing.appendChild(newTimbox);
-		newThing.appendChild(document.createElement('br'));
-		newThing.appendChild(Object.assign(document.createElement('div'), {
-			id: 'rangeBoxes'+n,
-		}));
+		const volSpan = Object.assign(document.createElement('span'), {
+			className: 'profile-vol',
+			id: 'profile-list-vol-' + (n + 1),
+			textContent: activeProfiles[n].volume + 'ml',
+		});
 
-		let divToFill = document.getElementById("putsDiv");
+		item.appendChild(dot);
+		item.appendChild(nameSpan);
+		item.appendChild(volSpan);
+		item.addEventListener('click', (function(idx) { return function() { setActiveProfile(idx); }; })(n));
+		profileList.appendChild(item);
 
-		divToFill.appendChild(newThing);
-		const inputBox = document.getElementById('rangeBoxes'+n);
+		// Canvas wrapper
+		const wrap = Object.assign(document.createElement('div'), {
+			className: 'editor-canvas-wrap',
+			id: 'canvas-wrap-' + (n + 1),
+		});
+		wrap.style.display = n === 0 ? 'flex' : 'none';
 
-		for (let m = 0; m < 60; m++) {
-			const newInput = Object.assign(document.createElement('input'), {
-				id: 'in' + (n+1) + ":" + (m+1),
-				type: 'range',
-				
-			});
-			inputBox.appendChild(newInput);
-		}
+		const canvas = Object.assign(document.createElement('canvas'), {
+			id: 'editor-canvas-' + (n + 1),
+			width: 1200,
+			height: 400,
+		});
+		canvas.addEventListener('mousedown', startPaint);
+		canvas.addEventListener('mousemove', continuePaint);
+		canvas.addEventListener('mouseup', endPaint);
+		canvas.addEventListener('mouseleave', endPaint);
 
-		for (let m = 0; m < 25; m++) {
-			const newVLine = Object.assign(document.createElement('div'), {
-				id: 'vLine' + (n+1) + ":" + m,
-				type: 'range',
-				
-			});
-			const newVtext =Object.assign(document.createElement('div'), {
-				id: 'vLine' + (n+1) + ":" + m,
-				type: 'range',
-				
-			});
-			inputBox.appendChild(newVLine);
-		}
+		const hint = Object.assign(document.createElement('span'), {
+			className: 'canvas-hint',
+			textContent: 'click & drag to draw',
+		});
 
-		
-		for (let m = 0; m < 11; m++) {
-			const newLine = Object.assign(document.createElement('hr'), {
-				id: 'hLine' + (m+1),
-			});
-			const newBar = Object.assign(document.createElement('h3'), {
-				id: 'barText'+ (m+1),
-			});
-			newBar.textContent =(10-m +' bar');
-			inputBox.appendChild(newLine);
-			inputBox.appendChild(newBar);
-		}
-		
-		
+		wrap.appendChild(canvas);
+		wrap.appendChild(hint);
+		canvasArea.appendChild(wrap);
 	}
-	console.log("All inputs loaded");
-	fixranges();
+
+	// Editor header inputs (shared, reflect active profile)
+	editorHeader.innerHTML = `
+		<div class="field-group">
+			<span class="field-label">Name</span>
+			<input class="field-input name-input" id="nameBox" type="text" placeholder="NAME" maxlength="8">
+		</div>
+		<div class="field-group">
+			<span class="field-label">Volume</span>
+			<input class="field-input num-input" id="volBox" type="number" min="4" max="240">
+			<span class="unit-label">ml</span>
+		</div>
+		<div class="field-group">
+			<span class="field-label">Time</span>
+			<input class="field-input num-input" id="timeBox" type="number" min="0">
+			<span class="unit-label">s</span>
+		</div>
+		<div class="limit-row">
+			<input type="checkbox" id="limCheck">
+			<label for="limCheck">Limit to volume</label>
+		</div>
+	`;
+
+	document.getElementById('nameBox').addEventListener('change', profileInputUpdate);
+	document.getElementById('volBox').addEventListener('change', profileInputUpdate);
+	document.getElementById('timeBox').addEventListener('change', profileInputUpdate);
+	document.getElementById('limCheck').addEventListener('change', profileInputUpdate);
+
+	console.debug("All elements loaded");
 }
 
-function fixranges(){
-	let ranges=document.querySelectorAll('[id^="in"]');
-	for(const inputRange of ranges){
-		inputRange.min="0.0";
-		inputRange.max="10.0";
-		inputRange.step="0.1";
-		inputRange.value="0.0";
+//function fixranges sets range limits and adds listners to neccesary ranges and textfeilds
+function fixranges() {
+	let ranges = document.querySelectorAll('[id^="in"]');
+	for (const inputRange of ranges) {
+		inputRange.min = "0.0";
+		inputRange.max = "10.0";
+		inputRange.step = "0.1";
+		inputRange.value = "0.0";
 		inputRange.addEventListener("change", sliderUpdate);
 	}
-	
-	let texts=document.querySelectorAll('[type="text"]');
 
-	for(const inputTexts of texts){
+
+	let texts = document.querySelectorAll('[type="text"]');
+	for (const inputTexts of texts) {
 		inputTexts.addEventListener("change", textUpdate);
 	}
 
-	let vLines=document.querySelectorAll('[id*="vLine"]');
 
-	for(let i=0; i<25;i++){
-		vLines[i].style.left = 100*i/24+'%';
-		vLines[i+25].style.left = 100*i/24+'%';
-		vLines[i+50].style.left = 100*i/24+'%';
-		vLines[i+75].style.left = 100*i/24+'%';
-		vLines[i+100].style.left = 100*i/24+'%';
+	let vLines = document.querySelectorAll('[id*="vLine"]');
+	for (let i = 0; i < 25; i++) {
+		vLines[i].style.left = 100 * i / 24 + '%';
+		vLines[i + 25].style.left = 100 * i / 24 + '%';
+		vLines[i + 50].style.left = 100 * i / 24 + '%';
+		vLines[i + 75].style.left = 100 * i / 24 + '%';
+		vLines[i + 100].style.left = 100 * i / 24 + '%';
+	}
+
+	let checkboxes = document.querySelectorAll('[type="checkbox"]');
+	for (const inputCheckbox of checkboxes) {
+		inputCheckbox.addEventListener("change", textUpdate);
 	}
 
 
-	let values=document.querySelectorAll('[type="number"]');
-		for(const inputValues of values){
-			inputValues.addEventListener("change", textUpdate);
-		}
-	
-		document.getElementById('bigOutButton').addEventListener("click",writeOut);
-		console.log("all inputs done") 
+	let values = document.querySelectorAll('[type="number"]');
+	for (const inputValues of values) {
+		inputValues.addEventListener("change", textUpdate);
+	}
+
+
+	console.debug("all inputs done")
 }
 
 
+//function textUpdate updates the textboxes on change
+function textUpdate(change) {
+	console.debug("textupdate");
 
+	for (let z = 0; z < 5; z++) {
+		let profileName = document.getElementById('nameBox' + (z + 1)).value.toUpperCase();
+		profileName = profileName.substring(0, 8);
 
-function textUpdate(change){
-	for(let z=0;z<5; z++){
-		let profileName=document.getElementById('nameBox'+(z+1)).value.toUpperCase();
-		profileName=profileName.substring(0,8);
-		
-		let volume =document.getElementById('volBox'+(z+1)).value;
-		let time=document.getElementById('timeBox'+(z+1)).value;
+		let volume = document.getElementById('volBox' + (z + 1)).value;
+		let time = document.getElementById('timeBox' + (z + 1)).value;
+		let volLim = document.getElementById('limCheck' + (z + 1)).checked;
 
-		if(volume>=240){
-			volume=240;
+		if (volume >= 240) {
+			volume = 240;
 		}
-		activeProfiles[z].name=profileName;
-		activeProfiles[z].volume=volume;
-		activeProfiles[z].time=time;
+		activeProfiles[z].name = profileName;
+		activeProfiles[z].volume = volume;
+		activeProfiles[z].time = time;
+		activeProfiles[z].volLim = volLim;
 
 	}
 	writeranges(activeProfiles);
 }
 
 
-function writeranges(profiles){
-	let ranges=[];
-	
-	for(let z=0;z<5; z++){
-		let highestRange=Math.ceil(parseInt(profiles[z].volume)/4);
-		console.log(highestRange);
-		for(let x=0;x<(highestRange);x++){
-			
-			let specificIn=document.getElementById('in'+(z+1)+':'+(x+1));
-			specificIn.value=profiles[z].pressureArray[x];
+//function writeranges updates all the ranges
+function writeranges(profiles) {
+	let ranges = [];
+
+	for (let z = 0; z < 5; z++) {
+		let highestRange = Math.ceil(parseInt(profiles[z].volume));  //finds index of highest range to be editable
+		console.debug(highestRange);
+		for (let x = 0; x < (highestRange); x++) {  //indexes over range up to highest range
+
+			let specificIn = document.getElementById('in' + (z + 1) + ':' + (x + 1));
+			specificIn.value = profiles[z].pressureArray[x];
 			specificIn.style.display = 'inline-block';
-			specificIn.style.width= 100/(highestRange)+'%';
+			specificIn.style.width = 100 / (highestRange) + '%';
 		}
-		document.getElementById('nameBox'+(z+1)).value=profiles[z].name;
-		document.getElementById('volBox'+(z+1)).value=profiles[z].volume;
+		document.getElementById('nameBox' + (z + 1)).value = profiles[z].name;
+		document.getElementById('volBox' + (z + 1)).value = profiles[z].volume;
 
-		for(let x=(highestRange);x<60;x++){
-			let specificIn=document.getElementById('in'+(z+1)+':'+(x+1));
+		for (let x = (highestRange); x < 240; x++) {
+			let specificIn = document.getElementById('in' + (z + 1) + ':' + (x + 1));
 			specificIn.style.display = 'none';
+
+			if ((activeProfiles[z].volLim) == 1) {
+				console.debug("limited volume");
+				profiles[z].pressureArray[x] = 0.0;
+			}
 		}
 
-		let highestVolume=Math.ceil(parseInt(profiles[z].volume)/10);
+		let highestVolume = Math.ceil(parseInt(profiles[z].volume) / 10);
 
-		for(let x=0;x<24;x++){
+		for (let x = 0; x < 24; x++) {
 
-			let specificV=document.getElementById('vLine'+(z+1)+':'+x);
-			if(x>highestVolume){
+			let specificV = document.getElementById('vLine' + (z + 1) + ':' + x);
+			if (x > highestVolume) {
 				specificV.style.display = 'none';
-			} else{
+
+			} else {
+
 				specificV.style.display = 'inline-block';
 			}
-			specificV.style.left = 100*x/highestVolume+'%';
-			
-		}
-	}
+			specificV.style.left = 100 * x / highestVolume + '%';
 
+		}
+		const infusiondiv = document.getElementById("infusiondiv" + (z + 1))
+		let calcPreinfusionWidth = 18 / (highestRange / 240);
+		if (calcPreinfusionWidth > 100) {
+			calcPreinfusionWidth = 100;
+		}
+		infusiondiv.style = "width:" + calcPreinfusionWidth + "%";
+	}
 }
 
-function sliderUpdate(change){
-	let smothVal=document.getElementById("settingNum").value;
+function getFileVersion(versionVal = -1.0) {
+	if (versionVal == -1) {
+		versionVal = document.getElementById("fileVersion").value;
+	}
+	if (versionVal > 1.5) {
+		versionVal = 2.0;
+	} else {
+		versionVal = 1.0;
+	}
+	document.getElementById("fileVersion").value = versionVal;
+	document.getElementById("outputFileVerson").innerHTML = versionVal;
+}
+
+
+function sliderUpdate(change) {
+	let smothVal = document.getElementById("settingNum").value;
+	document.getElementById("outputFileSmoothness").innerHTML = smothVal;
+	smothVal = smothVal * 4
 	let slug = change.currentTarget.id.substring(2);
-	let i=slug.split(':').pop(); //profile point
-	let n=slug.substr(0, slug.indexOf(':'));  //profile number
-	let changeArray=[];
-	let valueArray=[];
+	let i = slug.split(':').pop(); //profile point
+	let n = slug.substr(0, slug.indexOf(':'));  //profile number
+	let changeArray = [];
+	let valueArray = [];
 
-	for(let s=0; s<Math.floor(smothVal/2)*2+1;s++){
-		if((i-Math.floor(smothVal/2)+s)<1 || (i-Math.floor(smothVal/2)+s)>59){
-
-		}else{
+	for (let s = 0; s < Math.floor(smothVal / 2) * 2 + 1; s++) {
+		if ((i - Math.floor(smothVal / 2) + s) < 1 || (i - Math.floor(smothVal / 2) + s) > 240) {
+		} else {
 			changeArray.push({
-				idProb:'in'+ n +':'+(i-Math.floor(smothVal/2)+s),
-				iIs:(i-Math.floor(smothVal/2)+s),
+				idProb: 'in' + n + ':' + (i - Math.floor(smothVal / 2) + s),
+				iIs: (i - Math.floor(smothVal / 2) + s),
 			})
 		}
-		
-		
 	}
 
-	for (range of changeArray){
-		let val=parseFloat(document.getElementById(range.idProb).value);
-		let diff=(change.target.value-val);
-		let indexDiff= Math.abs(i-parseInt(range.iIs));
-		let adjustmentval=(indexDiff*-2/smothVal+1);
-		let newVal=val+diff*adjustmentval;
-		if (newVal<0){
-			newVal=0.0;
+	for (range of changeArray) {
+		let val = parseFloat(document.getElementById(range.idProb).value);
+		let diff = (change.target.value - val);
+		let indexDiff = Math.abs(i - parseInt(range.iIs));
+		let adjustmentval = (indexDiff * -2 / smothVal + 1);
+		let newVal = val + diff * adjustmentval;
+		if (newVal < 0) {
+			newVal = 0.0;
 		}
-
-		if(indexDiff!=0){
-			valueArray.push({newVal: Math.round(newVal*10)/10,
-				iIs:range.iIs,
+		if (indexDiff != 0) {
+			valueArray.push({
+				newVal: Math.round(newVal * 10) / 10,
+				iIs: range.iIs,
 			});
-		}else{
-			valueArray.push({newVal: change.target.value ,
-				iIs:range.iIs,
+		} else {
+			valueArray.push({
+				newVal: change.target.value,
+				iIs: range.iIs,
 			});
 		}
-		
+	}
+	for (profile of valueArray) {
+		activeProfiles[(n - 1)].pressureArray[(profile.iIs - 1)] = parseFloat(profile.newVal);
 	}
 
-	for (profile of valueArray){
-		activeProfiles[(n-1)].pressureArray[(profile.iIs-1)]=parseFloat(profile.newVal);
-	}
-	
-	console.log(activeProfiles);
+	console.debug(activeProfiles);
 	writeranges(activeProfiles);
 	graphIt(activeProfiles);
 }
 
 var myChart;
 
+
+function fixDropAera() {
+	var dropArea = document.getElementById('drop-area');
+
+	// Prevent default drag behaviors
+	['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+		dropArea.addEventListener(eventName, preventDefaults, false);
+		document.body.addEventListener(eventName, preventDefaults, false);
+	});
+
+	// Highlight drop area when file is dragged over it
+	['dragenter', 'dragover'].forEach(eventName => {
+		dropArea.addEventListener(eventName, highlight, false);
+	});
+
+	// Unhighlight drop area when file is dragged out of it
+	['dragleave', 'drop'].forEach(eventName => {
+		dropArea.addEventListener(eventName, unhighlight, false);
+	});
+
+	// Handle dropped files
+	dropArea.addEventListener('drop', handleDrop, false);
+
+	function preventDefaults(e) {
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
+	function highlight() {
+		dropArea.classList.add('highlight');
+	}
+	function unhighlight() {
+		dropArea.classList.remove('highlight');
+	}
+
+	function handleDrop(e) {
+		var dt = e.dataTransfer;
+		var files = dt.files;
+
+		handleFiles(files);
+	}
+}
+
+
 function graphIt(profiles) {
-	var ctx = document.getElementById('myChart').getContext('2d');
+	var ctx = document.getElementById('myChart');
 	const data = {
 		labels: labelarray,
 		datasets: [{
@@ -297,21 +382,15 @@ function graphIt(profiles) {
 		}]
 	};
 
+	
+
+
 	const config = {
 		type: 'line',
 		data: data,
 		options: {
 			responsive: true,
 			maintainAspectRatio: true,
-			plugins: {
-				legend: {
-					position: 'top',
-				},
-				title: {
-					display: true,
-					text: 'Chart.js Line Chart'
-				}
-			},
 			scales: {
 				y: {
 					suggestedMin: 0,
@@ -328,15 +407,17 @@ function graphIt(profiles) {
 					}
 				},
 			}
-		}
+		},
+		plugins:[]
 	};
+
 
 
 	if (hasGraphed) {
 		let highestVol = Math.max.apply(Math, profiles.map(function (o) {
 			return o.volume;
 		}));
-		myChart.data.labels = labelarray.slice(0, -(240 - highestVol) / 4 - 1);
+		myChart.data.labels = labelarray.slice(0, -(240 - highestVol) - 1);
 		myChart.data.datasets = [{
 			label: "1: " + profiles[0].name,
 			data: profiles[0].pressureArray,
@@ -374,138 +455,170 @@ function graphIt(profiles) {
 		myChart = new Chart(ctx, config);
 		hasGraphed = 1;
 	}
-
-
-
-
 };
 
+
+// run after page load
 document.addEventListener("DOMContentLoaded", function (event) {
 
 	graphIt(emptyProfiles);
 
 	addElements();
-	const inputElement = document.getElementById("fileElem");
-	inputElement.addEventListener("change", handleFiles, false);
+	const fileInput = document.getElementById("fileElem");
+	fileInput.addEventListener('change', function () {
+		handleFiles(this.files);
+	});
+	getFileVersion();
+	fixDropAera();
+	document.getElementById('bigOutButton').addEventListener("click", writeOut);
 
-	function handleFiles() {
-		const fileList = this.files;
-		const numFiles = fileList.length;
-		console.log("Read: " + numFiles + " files.");
-		let reader = new FileReader();
-
-		reader.onload = (e) => {
-			let file = e.target.result;
-			file = file.replaceAll('\n', "");
-			var lines = file.split('\r');
-			console.log(lines);
-			readProfiles=[];
-
-			for (let i = 0; i < 5; i++) {
-				lines[2 + i * 66] = lines[2 + i * 66].substring(5);
-				lines[3 + i * 66] = parseInt(lines[3 + i * 66].substring(3));
-				lines[4 + i * 66] = parseInt(lines[4 + i * 66].substring(5));
-				for (let k = 5; k < 15; k++) {
-					lines[k + i * 66] = parseFloat(lines[k + i * 66].substring(3));
-				}
-				for (let l = 15; l < 65; l++) {
-					lines[l + i * 66] = parseFloat(lines[l + i * 66].substring(4));
-				}
-			};
-
-			for (let j = 0; j < 5; j++) {
-				console.log("Reading profile" + (j + 1))
-				readProfiles.push({
-					name: lines[2 + (66 * j)],
-					volume: lines[3 + (66 * j)],
-					time: lines[4 + (66 * j)],
-					pressureArray: lines.slice(5 + (66 * j), 65 + (66 * j))
-				});
-			};
-			console.log(readProfiles);
-			graphIt(readProfiles);
-			writeranges(readProfiles);
-			activeProfiles=readProfiles;
-		}
-
-		reader.readAsText(fileList[0]);
-	}
 });
 
+// Function to handle selected files
+function handleFiles(fileList) {
+	// Get the number of files selected
+	const numFiles = fileList.length;
+	// Display the number of files in the console
+	console.debug("Read: " + numFiles + " files.");
+	// Create a new FileReader object to read the contents of the file
+	let reader = new FileReader();
+
+	// Event handler when the file is successfully loaded
+	reader.onload = (e) => {
+		// Get the file content as a string
+		let file = e.target.result;
+		file = file.replaceAll('\n', "");
+		var lines = file.split('\r');
+
+		// Determine the value of 'ofsets' based on the number of lines in the file
+		const inputVersion = (lines.length < 400) ? 1 : 2;
+		const ofsets = (inputVersion < 2) ? 66 : 246;
 
 
+		console.debug(lines);
+		readProfiles = [];
 
-
-function getTextFile(){
-	let finFile= "";
-
-	for (o=0;o<5;o++){
-		let volumeTxt="";
-		let timeTxt="";
-		let start="TYPE:P\rINDEX: "+o+"\rNAME:"+activeProfiles[o].name+"\r";
-		if(activeProfiles[o].volume<10){
-			volumeTxt="ML:   "+activeProfiles[o].volume+"\r";
-		}else if(activeProfiles[o].volume<100){
-			volumeTxt="ML:  "+activeProfiles[o].volume+"\r";
-		}else{
-			volumeTxt="ML: "+activeProfiles[o].volume+"\r";
-		}
-		if(activeProfiles[o].time<10){
-			timeTxt="TIME:   "+activeProfiles[o].time+"\r";
-		}else if(activeProfiles[o].time<100){
-			timeTxt="TIME:  "+activeProfiles[o].time+"\r";
-		}else{
-			timeTxt="TIME: "+activeProfiles[o].time+"\r";
-		}
-		let arrayTxt="";
-		for(ee=0; ee<60;ee++){
-			if(ee<10){
-				if(activeProfiles[o].pressureArray[ee]<10){
-					arrayTxt=arrayTxt.concat(' '+ee+': '+parseFloat(activeProfiles[o].pressureArray[ee]).toFixed(1)+"\r");
-
-				}else{
-					arrayTxt=arrayTxt.concat(" "+ee+":"+parseFloat(activeProfiles[o].pressureArray[ee]).toFixed(1)+"\r");
-				}
-			}else{
-				if(activeProfiles[o].pressureArray[ee]<10){
-					arrayTxt=arrayTxt.concat(ee+": "+parseFloat(activeProfiles[o].pressureArray[ee]).toFixed(1)+"\r");
-				}else{
-					arrayTxt=arrayTxt.concat(ee+":"+parseFloat(activeProfiles[o].pressureArray[ee]).toFixed(1)+"\r");
-				}
-
+		// Loop through each set of data in the file
+		for (let i = 0; i < 5; i++) {
+			// Process each line of data for a given set
+			lines[2 + i * ofsets] = lines[2 + i * ofsets].substring(5);
+			lines[3 + i * ofsets] = parseInt(lines[3 + i * ofsets].substring(3));
+			lines[4 + i * ofsets] = parseInt(lines[4 + i * ofsets].substring(5));
+			for (let l = 5; l < ofsets - 1; l++) {
+				lines[l + i * ofsets] = parseFloat(lines[l + i * ofsets].substring(4));
 			}
-			
 		}
-		arrayTxt=arrayTxt.concat("\r\n")
-		finFile=finFile.concat(start,volumeTxt,timeTxt,arrayTxt);
+
+		// Read profile data and store it in the 'readProfiles' array
+		for (let j = 0; j < 5; j++) {
+			console.debug("Reading profile" + (j + 1))
+			readProfiles.push({
+				name: lines[2 + (ofsets * j)],
+				volume: lines[3 + (ofsets * j)],
+				time: lines[4 + (ofsets * j)],
+				pressureArray: lines.slice(5 + (ofsets * j), ofsets - 1 + (ofsets * j))
+			});
+
+		}
+		readProfiles = interpolateProfile(readProfiles, 240);
+		// Display the read profiles in the console for debugging
+		console.debug(readProfiles);
+		// Call the 'graphIt' function with the read profiles
+		graphIt(readProfiles);
+		// Call the 'writeranges' function with the read profiles
+		writeranges(readProfiles);
+		// Set the 'activeProfiles' variable to the read profiles
+		activeProfiles = readProfiles;
+	};
+
+	// Read the contents of the first selected file as text
+	reader.readAsText(fileList[0]);
+}
+
+function interpolateProfile(originalProfiles, wantedLenght) {
+	for (o = 0; o < 5; o++) {
+		const profile = originalProfiles[o].pressureArray;
+		newProfile = interpolateArray(profile, wantedLenght);
+		originalProfiles[o].pressureArray = newProfile;
+	}
+	return originalProfiles;
+}
+
+function interpolateArray(originalArray, targetLength) {
+	const originalLength = originalArray.length;
+	const ratio = (originalLength - 1) / (targetLength - 1);
+	const interpolatedArray = [];
+
+	for (let i = 0; i < targetLength; i++) {
+		const index = i * ratio;
+		const lowerIndex = Math.floor(index);
+		const upperIndex = Math.ceil(index);
+
+		if (lowerIndex === upperIndex) {
+			interpolatedArray.push(originalArray[lowerIndex]);
+		} else {
+			const lowerValue = originalArray[lowerIndex];
+			const upperValue = originalArray[upperIndex];
+			const fraction = index - lowerIndex;
+			const interpolatedValue = lowerValue + fraction * (upperValue - lowerValue);
+			interpolatedArray.push(interpolatedValue);
+		}
 	}
 
-	
+	return interpolatedArray;
+}
+
+
+function getTextFile(fileVersion = 1) {
+	let finFile = "";
+	let mlPerStep = 4;
+	if (fileVersion == 2) {
+		mlPerStep = 1;
+		outPutProfiles = interpolateProfile(activeProfiles, 240);
+	} else {
+		outPutProfiles = interpolateProfile(activeProfiles, 60);
+	}
+	let steps = Math.floor(240 / mlPerStep);
+
+	for (o = 0; o < 5; o++) {
+		let volumeTxt = "";
+		let timeTxt = "";
+		let start = "TYPE:P\rINDEX: " + o + "\rNAME:" + outPutProfiles[o].name + "\r";
+		volumeTxt = "ML:" + String(outPutProfiles[o].volume).padStart(4, " ") + "\r"
+		timeTxt = "TIME:" + String(outPutProfiles[o].time).padStart(4, " ") + "\r"
+		let arrayTxt = "";
+		for (ee = 0; ee < steps; ee++) {
+			estring = ee.toString();
+			arrayTxt = arrayTxt.concat(estring.padStart(3, " ") + ":" + (parseFloat(outPutProfiles[o].pressureArray[ee]).toFixed(1)).padStart(4, " ") + "\r");
+		}
+		arrayTxt = arrayTxt.concat("\r\n")
+		finFile = finFile.concat(start, volumeTxt, timeTxt, arrayTxt);
+	}
 	return finFile;
 }
 
-function writeOut(){
-	console.log("writing Out")
-	let finishedFile=getTextFile();
-	
-
-	var file = new Blob([finishedFile], {type: 'text/plain; charset=utf-8'});
-    if (window.navigator.msSaveOrOpenBlob) // IE10+
-        window.navigator.msSaveOrOpenBlob(file, "IMPONE");
-    else { // Others
-        var a = document.createElement("a"),
-                url = URL.createObjectURL(file);
-        a.href = url;
-        a.download = "IMPONE";
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function() {
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);  
-        }, 0); 
-    }
+function writeOut() {
+	console.debug("writing Out")
+	const versionVal = document.getElementById("fileVersion").value;
+	let finishedFile = getTextFile(versionVal);
 
 
-	console.log(finishedFile);
-	console.log(activeProfiles);
+	var file = new Blob([finishedFile], { type: 'text/plain; charset=utf-8' });
+	if (window.navigator.msSaveOrOpenBlob) // IE10+
+		window.navigator.msSaveOrOpenBlob(file, "IMPONE");
+	else { // Others
+		var a = document.createElement("a"),
+			url = URL.createObjectURL(file);
+		a.href = url;
+		a.download = "IMPONE";
+		document.body.appendChild(a);
+		a.click();
+		setTimeout(function () {
+			document.body.removeChild(a);
+			window.URL.revokeObjectURL(url);
+		}, 0);
+	}
+
+	console.debug(finishedFile);
+	console.debug(activeProfiles);
 }
