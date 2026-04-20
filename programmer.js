@@ -249,8 +249,7 @@ function drawCanvas(profileIndex) {
 	ctx.restore();
 }
 
-function applySmoothPaint(profileIndex, centerIdx, value, vol) {
-	const smothVal = parseInt(document.getElementById('settingNum').value) * 4;
+function applySmoothPaint(profileIndex, centerIdx, value, vol, smothVal) {
 	const half = Math.floor(smothVal / 2);
 	const profile = activeProfiles[profileIndex];
 
@@ -283,6 +282,7 @@ function continuePaint(e) {
 
 	const profile = activeProfiles[activeProfileIndex];
 	const vol = Math.ceil(parseInt(profile.volume));
+	const smothVal = parseInt(document.getElementById('settingNum').value) * 4;
 
 	const idx = Math.max(0, Math.min(vol - 1, Math.round((x / canvas.width) * (vol - 1))));
 	const pressure = Math.max(0, Math.min(10, (1 - y / canvas.height) * 10));
@@ -291,12 +291,12 @@ function continuePaint(e) {
 		const startIdx = Math.min(lastPaintIndex, idx);
 		const endIdx = Math.max(lastPaintIndex, idx);
 		for (let i = startIdx; i <= endIdx; i++) {
-			const t = (endIdx === startIdx) ? 1 : (i - startIdx) / (endIdx - startIdx);
+			const t = (i - lastPaintIndex) / (idx - lastPaintIndex);
 			const interpPressure = lastPaintValue + (pressure - lastPaintValue) * t;
-			applySmoothPaint(activeProfileIndex, i, interpPressure, vol);
+			applySmoothPaint(activeProfileIndex, i, interpPressure, vol, smothVal);
 		}
 	} else {
-		applySmoothPaint(activeProfileIndex, idx, pressure, vol);
+		applySmoothPaint(activeProfileIndex, idx, pressure, vol, smothVal);
 	}
 
 	lastPaintIndex = idx;
@@ -309,6 +309,7 @@ function continuePaint(e) {
 function endPaint() {
 	isPainting = false;
 	lastPaintIndex = -1;
+	lastPaintValue = 0;
 }
 
 //function fixranges sets range limits and adds listners to neccesary ranges and textfeilds
