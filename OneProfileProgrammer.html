@@ -1,37 +1,63 @@
 <!doctype html>
 <html>
+
 <head>
-<meta charset="utf-8">
-<title>One Profile Programmer</title>
-<script type="text/javascript" src="programmer.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.5.1/chart.js" ></script>
-<link rel="stylesheet" href="proggStyle.css">
+  <meta charset="utf-8">
+  <title>One Profile Programmer</title>
+  <script type="text/javascript" src="programmer.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.5.1/chart.js"></script>
+  <link rel="stylesheet" href="proggStyle.css">
 </head>
 
 <body>
-<header>
-  <h2>Crem One Programmer</h2>
-</header>
-<div id="drop-area">
-  <form class="my-form">
-    <p>Upload multiple files with the file dialog or by dragging and dropping images onto the dashed region</p>
-    <input type="file" id="fileElem" accept=".txt" style="display: none">
-    <label class="button" for="fileElem">Select some files</label>
-  </form>
-</div>
+  <header>
+    <div>
+      <h2>Crem One Programmer</h2>
+      <p class="header-sub">Pressure profile editor</p>
+    </div>
+    <button id="bigOutButton">Export ↓</button>
+  </header>
 
-<div id="graphbox">
-  <canvas id="myChart" width="600" height="350"></canvas>
-</div>
-<div id="setDiv">
-  <p>Smoothness: </p>
-  <input type="range" id="settingNum" value="20" min="1" max="20" step="1"/>
-</div>
+  <div id="app">
+    <div id="left-panel">
+      <div id="drop-area">
+        <div class="drop-zone-inner">
+          <p>Drop .txt profile or click to select</p>
+          <input type="file" id="fileElem" accept=".txt" style="display:none">
+          <label class="button" for="fileElem">Select file</label>
+        </div>
+      </div>
+      <div id="profile-list-section">
+        <div class="section-label">Profiles</div>
+        <div id="profile-list"></div>
+      </div>
+      <div id="graphbox">
+        <div class="section-label">Overview</div>
+        <canvas id="myChart" width="268" height="150"></canvas>
+      </div>
+    </div>
 
-<div id="putsDiv">
-</div>
+    <div id="right-panel">
+      <div id="editor-header"></div>
+      <div id="canvas-area"></div>
+      <div id="controls-footer">
+        <div class="control-group">
+          <span class="control-label">Smoothness</span>
+          <input type="range" id="settingNum" value="10" min="1" max="20" step="1">
+          <span id="outputFileSmoothness">10</span>
+        </div>
+        <div class="control-group">
+          <span class="control-label">File version</span>
+          <div class="version-toggle">
+            <button class="ver-btn" id="ver1">v1</button>
+            <button class="ver-btn active" id="ver2">v2</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<input type="button" id="bigOutButton" value="WriteOut"/>
-<a download="info.txt" id="downloadlink" style="display: none">Download</a>
+  <a download="info.txt" id="downloadlink" style="display:none">Download</a>
 </body>
+
 </html>
