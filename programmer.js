@@ -116,6 +116,53 @@ function addElements() {
 	console.debug("All elements loaded");
 }
 
+function setActiveProfile(n) {
+	activeProfileIndex = n;
+
+	for (let i = 0; i < 5; i++) {
+		document.getElementById('profile-item-' + (i + 1)).classList.toggle('active', i === n);
+		document.getElementById('canvas-wrap-' + (i + 1)).style.display = i === n ? 'flex' : 'none';
+	}
+
+	const profile = activeProfiles[n];
+	document.getElementById('nameBox').value = profile.name;
+	document.getElementById('volBox').value = profile.volume;
+	document.getElementById('timeBox').value = profile.time;
+	document.getElementById('limCheck').checked = !!profile.volLim;
+
+	drawCanvas(n);
+}
+
+function profileInputUpdate() {
+	const n = activeProfileIndex;
+	const profile = activeProfiles[n];
+
+	const name = document.getElementById('nameBox').value.toUpperCase().substring(0, 8);
+	const volume = Math.min(240, Math.max(4, parseInt(document.getElementById('volBox').value) || 240));
+	const time = parseInt(document.getElementById('timeBox').value) || 0;
+	const volLim = document.getElementById('limCheck').checked;
+
+	document.getElementById('nameBox').value = name;
+	document.getElementById('volBox').value = volume;
+
+	profile.name = name;
+	profile.volume = volume;
+	profile.time = time;
+	profile.volLim = volLim;
+
+	if (volLim) {
+		for (let x = volume; x < 240; x++) {
+			profile.pressureArray[x] = 0.0;
+		}
+	}
+
+	document.getElementById('profile-list-name-' + (n + 1)).textContent = name || ('Profile ' + (n + 1));
+	document.getElementById('profile-list-vol-' + (n + 1)).textContent = volume + 'ml';
+
+	drawCanvas(n);
+	graphIt(activeProfiles);
+}
+
 //function fixranges sets range limits and adds listners to neccesary ranges and textfeilds
 function fixranges() {
 	let ranges = document.querySelectorAll('[id^="in"]');
@@ -464,6 +511,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	graphIt(emptyProfiles);
 
 	addElements();
+	setActiveProfile(0);
 	const fileInput = document.getElementById("fileElem");
 	fileInput.addEventListener('change', function () {
 		handleFiles(this.files);
