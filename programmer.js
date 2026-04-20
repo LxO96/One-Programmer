@@ -169,10 +169,11 @@ function drawCanvas(profileIndex) {
 	const canvas = document.getElementById('editor-canvas-' + (profileIndex + 1));
 	if (!canvas) return;
 	const ctx = canvas.getContext('2d');
+	ctx.save();
 	const w = canvas.width;
 	const h = canvas.height;
 	const profile = activeProfiles[profileIndex];
-	const vol = Math.max(2, Math.ceil(parseInt(profile.volume)));
+	const vol = Math.ceil(parseInt(profile.volume));
 	const arr = profile.pressureArray;
 	const color = PROFILE_COLORS[profileIndex];
 
@@ -192,7 +193,7 @@ function drawCanvas(profileIndex) {
 		ctx.moveTo(0, y);
 		ctx.lineTo(w, y);
 		ctx.stroke();
-		if (bar > 0) {
+		if (bar > 0 && bar < 10) {
 			ctx.fillStyle = '#c8d0dc';
 			ctx.font = '14px system-ui';
 			ctx.fillText(bar, 6, y - 4);
@@ -210,8 +211,6 @@ function drawCanvas(profileIndex) {
 		ctx.stroke();
 	}
 
-	if (vol < 2) return;
-
 	// Build smooth path using midpoint bezier
 	function buildPath() {
 		ctx.moveTo(0, h - (parseFloat(arr[0]) / 10) * h);
@@ -222,9 +221,7 @@ function drawCanvas(profileIndex) {
 			const prevY = h - (parseFloat(arr[i - 1]) / 10) * h;
 			ctx.quadraticCurveTo(prevX, prevY, (prevX + x) / 2, (prevY + y) / 2);
 		}
-		const lx = w;
-		const ly = h - (parseFloat(arr[vol - 1]) / 10) * h;
-		ctx.lineTo(lx, ly);
+		ctx.lineTo(w, h - (parseFloat(arr[vol - 1]) / 10) * h);
 	}
 
 	// Fill under curve
@@ -248,6 +245,8 @@ function drawCanvas(profileIndex) {
 	ctx.lineJoin = 'round';
 	ctx.lineCap = 'round';
 	ctx.stroke();
+
+	ctx.restore();
 }
 
 //function fixranges sets range limits and adds listners to neccesary ranges and textfeilds
