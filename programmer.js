@@ -312,124 +312,6 @@ function endPaint() {
 	lastPaintValue = 0;
 }
 
-//function fixranges sets range limits and adds listners to neccesary ranges and textfeilds
-function fixranges() {
-	let ranges = document.querySelectorAll('[id^="in"]');
-	for (const inputRange of ranges) {
-		inputRange.min = "0.0";
-		inputRange.max = "10.0";
-		inputRange.step = "0.1";
-		inputRange.value = "0.0";
-		inputRange.addEventListener("change", sliderUpdate);
-	}
-
-
-	let texts = document.querySelectorAll('[type="text"]');
-	for (const inputTexts of texts) {
-		inputTexts.addEventListener("change", textUpdate);
-	}
-
-
-	let vLines = document.querySelectorAll('[id*="vLine"]');
-	for (let i = 0; i < 25; i++) {
-		vLines[i].style.left = 100 * i / 24 + '%';
-		vLines[i + 25].style.left = 100 * i / 24 + '%';
-		vLines[i + 50].style.left = 100 * i / 24 + '%';
-		vLines[i + 75].style.left = 100 * i / 24 + '%';
-		vLines[i + 100].style.left = 100 * i / 24 + '%';
-	}
-
-	let checkboxes = document.querySelectorAll('[type="checkbox"]');
-	for (const inputCheckbox of checkboxes) {
-		inputCheckbox.addEventListener("change", textUpdate);
-	}
-
-
-	let values = document.querySelectorAll('[type="number"]');
-	for (const inputValues of values) {
-		inputValues.addEventListener("change", textUpdate);
-	}
-
-
-	console.debug("all inputs done")
-}
-
-
-//function textUpdate updates the textboxes on change
-function textUpdate(change) {
-	console.debug("textupdate");
-
-	for (let z = 0; z < 5; z++) {
-		let profileName = document.getElementById('nameBox' + (z + 1)).value.toUpperCase();
-		profileName = profileName.substring(0, 8);
-
-		let volume = document.getElementById('volBox' + (z + 1)).value;
-		let time = document.getElementById('timeBox' + (z + 1)).value;
-		let volLim = document.getElementById('limCheck' + (z + 1)).checked;
-
-		if (volume >= 240) {
-			volume = 240;
-		}
-		activeProfiles[z].name = profileName;
-		activeProfiles[z].volume = volume;
-		activeProfiles[z].time = time;
-		activeProfiles[z].volLim = volLim;
-
-	}
-	writeranges(activeProfiles);
-}
-
-
-//function writeranges updates all the ranges
-function writeranges(profiles) {
-	let ranges = [];
-
-	for (let z = 0; z < 5; z++) {
-		let highestRange = Math.ceil(parseInt(profiles[z].volume));  //finds index of highest range to be editable
-		console.debug(highestRange);
-		for (let x = 0; x < (highestRange); x++) {  //indexes over range up to highest range
-
-			let specificIn = document.getElementById('in' + (z + 1) + ':' + (x + 1));
-			specificIn.value = profiles[z].pressureArray[x];
-			specificIn.style.display = 'inline-block';
-			specificIn.style.width = 100 / (highestRange) + '%';
-		}
-		document.getElementById('nameBox' + (z + 1)).value = profiles[z].name;
-		document.getElementById('volBox' + (z + 1)).value = profiles[z].volume;
-
-		for (let x = (highestRange); x < 240; x++) {
-			let specificIn = document.getElementById('in' + (z + 1) + ':' + (x + 1));
-			specificIn.style.display = 'none';
-
-			if ((activeProfiles[z].volLim) == 1) {
-				console.debug("limited volume");
-				profiles[z].pressureArray[x] = 0.0;
-			}
-		}
-
-		let highestVolume = Math.ceil(parseInt(profiles[z].volume) / 10);
-
-		for (let x = 0; x < 24; x++) {
-
-			let specificV = document.getElementById('vLine' + (z + 1) + ':' + x);
-			if (x > highestVolume) {
-				specificV.style.display = 'none';
-
-			} else {
-
-				specificV.style.display = 'inline-block';
-			}
-			specificV.style.left = 100 * x / highestVolume + '%';
-
-		}
-		const infusiondiv = document.getElementById("infusiondiv" + (z + 1))
-		let calcPreinfusionWidth = 18 / (highestRange / 240);
-		if (calcPreinfusionWidth > 100) {
-			calcPreinfusionWidth = 100;
-		}
-		infusiondiv.style = "width:" + calcPreinfusionWidth + "%";
-	}
-}
 
 function getFileVersion(versionVal) {
 	if (versionVal === undefined) versionVal = fileVersionValue;
@@ -445,55 +327,6 @@ function setFileVersion(v) {
 }
 
 
-function sliderUpdate(change) {
-	let smothVal = document.getElementById("settingNum").value;
-	document.getElementById("outputFileSmoothness").innerHTML = smothVal;
-	smothVal = smothVal * 4
-	let slug = change.currentTarget.id.substring(2);
-	let i = slug.split(':').pop(); //profile point
-	let n = slug.substr(0, slug.indexOf(':'));  //profile number
-	let changeArray = [];
-	let valueArray = [];
-
-	for (let s = 0; s < Math.floor(smothVal / 2) * 2 + 1; s++) {
-		if ((i - Math.floor(smothVal / 2) + s) < 1 || (i - Math.floor(smothVal / 2) + s) > 240) {
-		} else {
-			changeArray.push({
-				idProb: 'in' + n + ':' + (i - Math.floor(smothVal / 2) + s),
-				iIs: (i - Math.floor(smothVal / 2) + s),
-			})
-		}
-	}
-
-	for (range of changeArray) {
-		let val = parseFloat(document.getElementById(range.idProb).value);
-		let diff = (change.target.value - val);
-		let indexDiff = Math.abs(i - parseInt(range.iIs));
-		let adjustmentval = (indexDiff * -2 / smothVal + 1);
-		let newVal = val + diff * adjustmentval;
-		if (newVal < 0) {
-			newVal = 0.0;
-		}
-		if (indexDiff != 0) {
-			valueArray.push({
-				newVal: Math.round(newVal * 10) / 10,
-				iIs: range.iIs,
-			});
-		} else {
-			valueArray.push({
-				newVal: change.target.value,
-				iIs: range.iIs,
-			});
-		}
-	}
-	for (profile of valueArray) {
-		activeProfiles[(n - 1)].pressureArray[(profile.iIs - 1)] = parseFloat(profile.newVal);
-	}
-
-	console.debug(activeProfiles);
-	writeranges(activeProfiles);
-	graphIt(activeProfiles);
-}
 
 var myChart;
 
@@ -655,20 +488,23 @@ function graphIt(profiles) {
 
 
 // run after page load
-document.addEventListener("DOMContentLoaded", function (event) {
-
+document.addEventListener("DOMContentLoaded", function(event) {
 	graphIt(emptyProfiles);
-
 	addElements();
 	setActiveProfile(0);
-	const fileInput = document.getElementById("fileElem");
-	fileInput.addEventListener('change', function () {
-		handleFiles(this.files);
+
+	document.getElementById('ver1').addEventListener('click', function() { setFileVersion(1); });
+	document.getElementById('ver2').addEventListener('click', function() { setFileVersion(2); });
+	document.getElementById('settingNum').addEventListener('input', function() {
+		document.getElementById('outputFileSmoothness').textContent = this.value;
 	});
-	getFileVersion();
+
+	const fileInput = document.getElementById("fileElem");
+	fileInput.addEventListener('change', function() { handleFiles(this.files); });
+
+	getFileVersion(2);
 	fixDropAera();
 	document.getElementById('bigOutButton').addEventListener("click", writeOut);
-
 });
 
 // Function to handle selected files
@@ -718,14 +554,15 @@ function handleFiles(fileList) {
 
 		}
 		readProfiles = interpolateProfile(readProfiles, 240);
-		// Display the read profiles in the console for debugging
 		console.debug(readProfiles);
-		// Call the 'graphIt' function with the read profiles
-		graphIt(readProfiles);
-		// Call the 'writeranges' function with the read profiles
-		writeranges(readProfiles);
-		// Set the 'activeProfiles' variable to the read profiles
 		activeProfiles = readProfiles;
+		graphIt(activeProfiles);
+		for (let i = 0; i < 5; i++) {
+			document.getElementById('profile-list-name-' + (i + 1)).textContent = activeProfiles[i].name || ('Profile ' + (i + 1));
+			document.getElementById('profile-list-vol-' + (i + 1)).textContent = activeProfiles[i].volume + 'ml';
+			drawCanvas(i);
+		}
+		setActiveProfile(activeProfileIndex);
 	};
 
 	// Read the contents of the first selected file as text
