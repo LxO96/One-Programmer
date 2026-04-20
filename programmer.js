@@ -165,6 +165,91 @@ function profileInputUpdate() {
 	graphIt(activeProfiles);
 }
 
+function drawCanvas(profileIndex) {
+	const canvas = document.getElementById('editor-canvas-' + (profileIndex + 1));
+	if (!canvas) return;
+	const ctx = canvas.getContext('2d');
+	const w = canvas.width;
+	const h = canvas.height;
+	const profile = activeProfiles[profileIndex];
+	const vol = Math.max(2, Math.ceil(parseInt(profile.volume)));
+	const arr = profile.pressureArray;
+	const color = PROFILE_COLORS[profileIndex];
+
+	ctx.clearRect(0, 0, w, h);
+
+	// Pre-infusion zone (~first 18ml)
+	const preW = Math.min(w, (18 / vol) * w);
+	ctx.fillStyle = 'rgba(55, 119, 255, 0.05)';
+	ctx.fillRect(0, 0, preW, h);
+
+	// Horizontal grid lines (0–10 bar)
+	for (let bar = 0; bar <= 10; bar++) {
+		const y = h - (bar / 10) * h;
+		ctx.strokeStyle = bar === 0 ? '#dde3ec' : '#eaeff5';
+		ctx.lineWidth = bar === 0 ? 1.5 : 1;
+		ctx.beginPath();
+		ctx.moveTo(0, y);
+		ctx.lineTo(w, y);
+		ctx.stroke();
+		if (bar > 0) {
+			ctx.fillStyle = '#c8d0dc';
+			ctx.font = '14px system-ui';
+			ctx.fillText(bar, 6, y - 4);
+		}
+	}
+
+	// Vertical grid lines (every 24ml)
+	for (let ml = 24; ml < vol; ml += 24) {
+		const x = (ml / (vol - 1)) * w;
+		ctx.strokeStyle = '#eaeff5';
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		ctx.moveTo(x, 0);
+		ctx.lineTo(x, h);
+		ctx.stroke();
+	}
+
+	if (vol < 2) return;
+
+	// Build smooth path using midpoint bezier
+	function buildPath() {
+		ctx.moveTo(0, h - (parseFloat(arr[0]) / 10) * h);
+		for (let i = 1; i < vol; i++) {
+			const x = (i / (vol - 1)) * w;
+			const y = h - (parseFloat(arr[i]) / 10) * h;
+			const prevX = ((i - 1) / (vol - 1)) * w;
+			const prevY = h - (parseFloat(arr[i - 1]) / 10) * h;
+			ctx.quadraticCurveTo(prevX, prevY, (prevX + x) / 2, (prevY + y) / 2);
+		}
+		const lx = w;
+		const ly = h - (parseFloat(arr[vol - 1]) / 10) * h;
+		ctx.lineTo(lx, ly);
+	}
+
+	// Fill under curve
+	const r = parseInt(color.slice(1, 3), 16);
+	const g = parseInt(color.slice(3, 5), 16);
+	const b = parseInt(color.slice(5, 7), 16);
+
+	ctx.beginPath();
+	buildPath();
+	ctx.lineTo(w, h);
+	ctx.lineTo(0, h);
+	ctx.closePath();
+	ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',0.15)';
+	ctx.fill();
+
+	// Stroke curve
+	ctx.beginPath();
+	buildPath();
+	ctx.strokeStyle = color;
+	ctx.lineWidth = 2.5;
+	ctx.lineJoin = 'round';
+	ctx.lineCap = 'round';
+	ctx.stroke();
+}
+
 //function fixranges sets range limits and adds listners to neccesary ranges and textfeilds
 function fixranges() {
 	let ranges = document.querySelectorAll('[id^="in"]');
