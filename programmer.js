@@ -36,7 +36,7 @@ function addElements() {
 	for (let n = 0; n < 5; n++) {
 		// Profile list item
 		const item = document.createElement('div');
-		item.className = 'profile-item' + (n === 0 ? ' active' : '');
+		item.className = 'profile-item' + (n === activeProfileIndex ? ' active' : '');
 		item.id = 'profile-item-' + (n + 1);
 
 		const dot = Object.assign(document.createElement('div'), { className: 'profile-dot' });
