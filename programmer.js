@@ -68,7 +68,7 @@ function deriveArray(profileIndex) {
 	const vol = Math.ceil(parseInt(profile.volume));
 	const pts = [...profile.controlPoints].sort((a, b) => a.x - b.x);
 	for (let i = 0; i < 240; i++) {
-		if (i >= vol) { profile.pressureArray[i] = 0; continue; }
+		if (i >= vol) { profile.pressureArray[i] = "0.0"; continue; }
 		const t = vol === 1 ? 0 : i / (vol - 1);
 		let lo = pts[0], hi = pts[pts.length - 1];
 		for (let j = 0; j < pts.length - 1; j++) {
