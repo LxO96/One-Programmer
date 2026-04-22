@@ -584,10 +584,6 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 	document.getElementById('ver1').addEventListener('click', function() { setFileVersion(1); });
 	document.getElementById('ver2').addEventListener('click', function() { setFileVersion(2); });
-	document.getElementById('settingNum').addEventListener('input', function() {
-		document.getElementById('outputFileSmoothness').textContent = this.value;
-	});
-
 	const fileInput = document.getElementById("fileElem");
 	fileInput.addEventListener('change', function() { handleFiles(this.files); });
 
