@@ -211,12 +211,6 @@ function profileInputUpdate() {
 
 	document.getElementById('timeBox').value = time;
 
-	if (volLim) {
-		for (let x = volume; x < 240; x++) {
-			profile.pressureArray[x] = "0.0";
-		}
-	}
-
 	document.getElementById('profile-list-name-' + (n + 1)).textContent = name || ('Profile ' + (n + 1));
 	document.getElementById('profile-list-vol-' + (n + 1)).textContent = volume + 'ml';
 
@@ -653,6 +647,7 @@ function handleFiles(fileList) {
 		activeProfiles = readProfiles;
 		graphIt(activeProfiles);
 		for (let i = 0; i < 5; i++) {
+			arrayToControlPoints(i);
 			document.getElementById('profile-list-name-' + (i + 1)).textContent = activeProfiles[i].name || ('Profile ' + (i + 1));
 			document.getElementById('profile-list-vol-' + (i + 1)).textContent = activeProfiles[i].volume + 'ml';
 			drawCanvas(i);
@@ -728,6 +723,7 @@ function getTextFile(fileVersion = 1) {
 
 function writeOut() {
 	console.debug("writing Out");
+	for (let i = 0; i < 5; i++) deriveArray(i);
 	let finishedFile = getTextFile(fileVersionValue);
 
 	var file = new Blob([finishedFile], { type: 'text/plain; charset=utf-8' });
