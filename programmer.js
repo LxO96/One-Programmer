@@ -129,14 +129,15 @@ function addElements() {
 			width: 1200,
 			height: 400,
 		});
-		canvas.addEventListener('mousedown', startPaint);
-		canvas.addEventListener('mousemove', continuePaint);
-		canvas.addEventListener('mouseup', endPaint);
-		canvas.addEventListener('mouseleave', endPaint);
+		canvas.addEventListener('mousedown', startEdit);
+		canvas.addEventListener('mousemove', moveEdit);
+		canvas.addEventListener('mouseup', endEdit);
+		canvas.addEventListener('mouseleave', endEdit);
+		canvas.addEventListener('dblclick', removePoint);
 
 		const hint = Object.assign(document.createElement('span'), {
 			className: 'canvas-hint',
-			textContent: 'click & drag to draw',
+			textContent: 'click to add · drag to move · dbl-click to remove',
 		});
 
 		wrap.appendChild(canvas);
@@ -323,67 +324,85 @@ function drawCanvas(profileIndex) {
 	ctx.restore();
 }
 
-function applySmoothPaint(profileIndex, centerIdx, value, vol, smothVal) {
-	const half = Math.floor(smothVal / 2);
-	const profile = activeProfiles[profileIndex];
-
-	for (let s = -half; s <= half; s++) {
-		const i = centerIdx + s;
-		if (i < 0 || i >= vol) continue;
-		const indexDiff = Math.abs(s);
-		const adjustmentVal = (indexDiff * -2 / smothVal + 1);
-		const current = parseFloat(profile.pressureArray[i]);
-		let newVal = current + (value - current) * adjustmentVal;
-		newVal = Math.max(0, Math.min(10, Math.round(newVal * 10) / 10));
-		profile.pressureArray[i] = newVal;
-	}
-}
-
-function startPaint(e) {
-	isPainting = true;
-	lastPaintIndex = -1;
-	continuePaint(e);
-}
-
-function continuePaint(e) {
-	if (!isPainting) return;
+function startEdit(e) {
 	const canvas = e.currentTarget;
 	const rect = canvas.getBoundingClientRect();
 	const scaleX = canvas.width / rect.width;
 	const scaleY = canvas.height / rect.height;
-	const x = (e.clientX - rect.left) * scaleX;
-	const y = (e.clientY - rect.top) * scaleY;
-
+	const mx = (e.clientX - rect.left) * scaleX;
+	const my = (e.clientY - rect.top) * scaleY;
 	const profile = activeProfiles[activeProfileIndex];
-	const vol = Math.ceil(parseInt(profile.volume));
-	const smothVal = parseInt(document.getElementById('settingNum').value) * 4;
+	const HIT = 12 * scaleX;
 
-	const idx = Math.max(0, Math.min(vol - 1, Math.round((x / canvas.width) * (vol - 1))));
-	const pressure = Math.max(0, Math.min(10, (1 - y / canvas.height) * 10));
+	const idx = profile.controlPoints.findIndex(function(cp) {
+		return Math.hypot(cp.x * canvas.width - mx, (1 - cp.y) * canvas.height - my) < HIT;
+	});
 
-	if (lastPaintIndex >= 0 && lastPaintIndex !== idx) {
-		const startIdx = Math.min(lastPaintIndex, idx);
-		const endIdx = Math.max(lastPaintIndex, idx);
-		for (let i = startIdx; i <= endIdx; i++) {
-			const t = (i - lastPaintIndex) / (idx - lastPaintIndex);
-			const interpPressure = lastPaintValue + (pressure - lastPaintValue) * t;
-			applySmoothPaint(activeProfileIndex, i, interpPressure, vol, smothVal);
-		}
+	if (idx >= 0) {
+		draggingPointIndex = idx;
 	} else {
-		applySmoothPaint(activeProfileIndex, idx, pressure, vol, smothVal);
+		profile.controlPoints.push({
+			x: Math.max(0, Math.min(1, mx / canvas.width)),
+			y: Math.max(0, Math.min(1, 1 - my / canvas.height)),
+		});
+		draggingPointIndex = profile.controlPoints.length - 1;
 	}
-
-	lastPaintIndex = idx;
-	lastPaintValue = pressure;
 
 	drawCanvas(activeProfileIndex);
 	graphIt(activeProfiles);
 }
 
-function endPaint() {
-	isPainting = false;
-	lastPaintIndex = -1;
-	lastPaintValue = 0;
+function moveEdit(e) {
+	const canvas = e.currentTarget;
+	const rect = canvas.getBoundingClientRect();
+	const scaleX = canvas.width / rect.width;
+	const scaleY = canvas.height / rect.height;
+	const mx = (e.clientX - rect.left) * scaleX;
+	const my = (e.clientY - rect.top) * scaleY;
+	const profile = activeProfiles[activeProfileIndex];
+
+	if (draggingPointIndex >= 0) {
+		profile.controlPoints[draggingPointIndex] = {
+			x: Math.max(0, Math.min(1, mx / canvas.width)),
+			y: Math.max(0, Math.min(1, 1 - my / canvas.height)),
+		};
+		drawCanvas(activeProfileIndex);
+		graphIt(activeProfiles);
+	} else {
+		const HIT = 16 * scaleX;
+		const prev = hoveredPointIndex;
+		hoveredPointIndex = profile.controlPoints.findIndex(function(cp) {
+			return Math.hypot(cp.x * canvas.width - mx, (1 - cp.y) * canvas.height - my) < HIT;
+		});
+		if (hoveredPointIndex !== prev) drawCanvas(activeProfileIndex);
+	}
+}
+
+function endEdit() {
+	draggingPointIndex = -1;
+}
+
+function removePoint(e) {
+	const canvas = e.currentTarget;
+	const rect = canvas.getBoundingClientRect();
+	const scaleX = canvas.width / rect.width;
+	const scaleY = canvas.height / rect.height;
+	const mx = (e.clientX - rect.left) * scaleX;
+	const my = (e.clientY - rect.top) * scaleY;
+	const profile = activeProfiles[activeProfileIndex];
+	if (profile.controlPoints.length <= 2) return;
+
+	const HIT = 12 * scaleX;
+	const idx = profile.controlPoints.findIndex(function(cp) {
+		return Math.hypot(cp.x * canvas.width - mx, (1 - cp.y) * canvas.height - my) < HIT;
+	});
+
+	if (idx >= 0) {
+		profile.controlPoints.splice(idx, 1);
+		hoveredPointIndex = -1;
+		drawCanvas(activeProfileIndex);
+		graphIt(activeProfiles);
+	}
 }
 
 
