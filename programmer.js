@@ -224,9 +224,16 @@ function drawCanvas(profileIndex) {
 	const canvas = document.getElementById('editor-canvas-' + (profileIndex + 1));
 	if (!canvas) return;
 	const ctx = canvas.getContext('2d');
+	const dpr = window.devicePixelRatio || 1;
+	const rect = canvas.getBoundingClientRect();
+	if (rect.width > 0 && rect.height > 0) {
+		canvas.width = Math.round(rect.width * dpr);
+		canvas.height = Math.round(rect.height * dpr);
+	}
 	ctx.save();
-	const w = canvas.width;
-	const h = canvas.height;
+	ctx.scale(dpr, dpr);
+	const w = Math.round(rect.width) || canvas.width;
+	const h = Math.round(rect.height) || canvas.height;
 	const profile = activeProfiles[profileIndex];
 	const vol = Math.ceil(parseInt(profile.volume));
 	const color = PROFILE_COLORS[profileIndex];
