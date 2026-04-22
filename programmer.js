@@ -306,7 +306,7 @@ function drawCanvas(profileIndex) {
 	ctx.lineCap = 'round';
 	ctx.stroke();
 
-	// Control point handles
+	// Control point handles — iterate insertion-order so index i matches hoveredPointIndex
 	profile.controlPoints.forEach(function(cp, i) {
 		const cx = cp.x * w;
 		const cy = (1 - cp.y) * h;
