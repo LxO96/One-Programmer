@@ -232,8 +232,8 @@ function drawCanvas(profileIndex) {
 	const h = canvas.height;
 	const profile = activeProfiles[profileIndex];
 	const vol = Math.ceil(parseInt(profile.volume));
-	const arr = profile.pressureArray;
 	const color = PROFILE_COLORS[profileIndex];
+	const pts = [...(profile.controlPoints || [{ x: 0, y: 0 }, { x: 1, y: 0 }])].sort((a, b) => a.x - b.x);
 
 	ctx.clearRect(0, 0, w, h);
 
@@ -269,24 +269,26 @@ function drawCanvas(profileIndex) {
 		ctx.stroke();
 	}
 
-	// Build smooth path using midpoint bezier
+	if (pts.length < 2) { ctx.restore(); return; }
+
+	function cpX(p) { return p.x * w; }
+	function cpY(p) { return (1 - p.y) * h; }
+
 	function buildPath() {
-		ctx.moveTo(0, h - (parseFloat(arr[0]) / 10) * h);
-		for (let i = 1; i < vol; i++) {
-			const x = (i / (vol - 1)) * w;
-			const y = h - (parseFloat(arr[i]) / 10) * h;
-			const prevX = ((i - 1) / (vol - 1)) * w;
-			const prevY = h - (parseFloat(arr[i - 1]) / 10) * h;
-			ctx.quadraticCurveTo(prevX, prevY, (prevX + x) / 2, (prevY + y) / 2);
+		ctx.moveTo(cpX(pts[0]), cpY(pts[0]));
+		for (let i = 1; i < pts.length; i++) {
+			const x0 = cpX(pts[i - 1]), y0 = cpY(pts[i - 1]);
+			const x1 = cpX(pts[i]),     y1 = cpY(pts[i]);
+			ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
 		}
-		ctx.lineTo(w, h - (parseFloat(arr[vol - 1]) / 10) * h);
+		ctx.lineTo(cpX(pts[pts.length - 1]), cpY(pts[pts.length - 1]));
 	}
 
-	// Fill under curve
 	const r = parseInt(color.slice(1, 3), 16);
 	const g = parseInt(color.slice(3, 5), 16);
 	const b = parseInt(color.slice(5, 7), 16);
 
+	// Fill under curve
 	ctx.beginPath();
 	buildPath();
 	ctx.lineTo(w, h);
@@ -303,6 +305,20 @@ function drawCanvas(profileIndex) {
 	ctx.lineJoin = 'round';
 	ctx.lineCap = 'round';
 	ctx.stroke();
+
+	// Control point handles
+	profile.controlPoints.forEach(function(cp, i) {
+		const cx = cp.x * w;
+		const cy = (1 - cp.y) * h;
+		const radius = i === hoveredPointIndex ? 8 : 5;
+		ctx.beginPath();
+		ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+		ctx.fillStyle = '#fff';
+		ctx.fill();
+		ctx.strokeStyle = color;
+		ctx.lineWidth = 2;
+		ctx.stroke();
+	});
 
 	ctx.restore();
 }
