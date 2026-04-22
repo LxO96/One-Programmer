@@ -362,6 +362,54 @@ function startEdit(e) {
 	graphIt(activeProfiles);
 }
 
+// Evaluates y of the midpoint-quadratic-bezier path (same as buildPath) at a given normalized x.
+function sampleCurveAtX(sortedPts, tx) {
+	const n = sortedPts.length;
+	if (n === 1) return sortedPts[0].y;
+	if (tx <= sortedPts[0].x) return sortedPts[0].y;
+	if (tx >= sortedPts[n - 1].x) return sortedPts[n - 1].y;
+
+	function lerp(x0, y0, x1, y1, qx) {
+		if (Math.abs(x1 - x0) < 1e-10) return y0;
+		return y0 + (y1 - y0) * (qx - x0) / (x1 - x0);
+	}
+
+	function quadY(x0, y0, cx, cy, x1, y1, qx) {
+		const a = x0 - 2 * cx + x1, b = 2 * cx - 2 * x0, c = x0 - qx;
+		let t;
+		if (Math.abs(a) < 1e-10) {
+			t = Math.abs(b) < 1e-10 ? 0 : -c / b;
+		} else {
+			const disc = b * b - 4 * a * c;
+			const sq = Math.sqrt(Math.max(0, disc));
+			const t1 = (-b + sq) / (2 * a), t2 = (-b - sq) / (2 * a);
+			t = (t1 >= -1e-6 && t1 <= 1 + 1e-6) ? t1 : t2;
+		}
+		t = Math.max(0, Math.min(1, t));
+		return (1 - t) * (1 - t) * y0 + 2 * t * (1 - t) * cy + t * t * y1;
+	}
+
+	// With 2 points buildPath is just a line
+	if (n === 2) return lerp(sortedPts[0].x, sortedPts[0].y, sortedPts[1].x, sortedPts[1].y, tx);
+
+	const mid = function(i, j) { return { x: (sortedPts[i].x + sortedPts[j].x) / 2, y: (sortedPts[i].y + sortedPts[j].y) / 2 }; };
+
+	// First segment: degenerate quad (line) from pts[0] to mid(0,1)
+	const m01 = mid(0, 1);
+	if (tx <= m01.x) return lerp(sortedPts[0].x, sortedPts[0].y, m01.x, m01.y, tx);
+
+	// Middle segments: quad from mid(i-1,i) to mid(i,i+1) with ctrl pts[i]
+	for (let i = 1; i < n - 1; i++) {
+		const s = mid(i - 1, i);
+		const e = mid(i, i + 1);
+		if (tx <= e.x) return quadY(s.x, s.y, sortedPts[i].x, sortedPts[i].y, e.x, e.y, tx);
+	}
+
+	// Last segment: line from mid(n-2,n-1) to pts[n-1]
+	const mLast = mid(n - 2, n - 1);
+	return lerp(mLast.x, mLast.y, sortedPts[n - 1].x, sortedPts[n - 1].y, tx);
+}
+
 function showTooltip(profileIndex, cpIndex, canvasEl, clientX, clientY) {
 	const tooltip = document.getElementById('canvas-tooltip-' + (profileIndex + 1));
 	if (!tooltip) return;
@@ -369,7 +417,9 @@ function showTooltip(profileIndex, cpIndex, canvasEl, clientX, clientY) {
 	const cp = profile.controlPoints[cpIndex];
 	const vol = Math.ceil(parseInt(profile.volume));
 	const volIndex = Math.round(cp.x * (vol - 1));
-	const pressure = Math.round(cp.y * 100) / 10;
+	const sortedPts = [...profile.controlPoints].sort((a, b) => a.x - b.x);
+	const curveY = sampleCurveAtX(sortedPts, cp.x);
+	const pressure = Math.round(curveY * 100) / 10;
 	tooltip.textContent = pressure.toFixed(1) + ' bar  ·  ' + volIndex + ' ml';
 	const rect = canvasEl.getBoundingClientRect();
 	const tx = clientX - rect.left;
