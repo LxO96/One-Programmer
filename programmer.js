@@ -410,15 +410,14 @@ function sampleCurveAtX(sortedPts, tx) {
 	return lerp(mLast.x, mLast.y, sortedPts[n - 1].x, sortedPts[n - 1].y, tx);
 }
 
-function showTooltip(profileIndex, cpIndex, canvasEl, clientX, clientY) {
+function showTooltip(profileIndex, normX, canvasEl, clientX, clientY) {
 	const tooltip = document.getElementById('canvas-tooltip-' + (profileIndex + 1));
 	if (!tooltip) return;
 	const profile = activeProfiles[profileIndex];
-	const cp = profile.controlPoints[cpIndex];
 	const vol = Math.ceil(parseInt(profile.volume));
-	const volIndex = Math.round(cp.x * (vol - 1));
+	const volIndex = Math.round(normX * (vol - 1));
 	const sortedPts = [...profile.controlPoints].sort((a, b) => a.x - b.x);
-	const curveY = sampleCurveAtX(sortedPts, cp.x);
+	const curveY = sampleCurveAtX(sortedPts, normX);
 	const pressure = Math.round(curveY * 100) / 10;
 	tooltip.textContent = pressure.toFixed(1) + ' bar  ·  ' + volIndex + ' ml';
 	const rect = canvasEl.getBoundingClientRect();
@@ -443,14 +442,15 @@ function moveEdit(e) {
 	const my = (e.clientY - rect.top) * scaleY;
 	const profile = activeProfiles[activeProfileIndex];
 
+	const normX = Math.max(0, Math.min(1, mx / canvas.width));
+
 	if (draggingPointIndex >= 0) {
 		profile.controlPoints[draggingPointIndex] = {
-			x: Math.max(0, Math.min(1, mx / canvas.width)),
+			x: normX,
 			y: Math.max(0, Math.min(1, 1 - my / canvas.height)),
 		};
 		drawCanvas(activeProfileIndex);
 		graphIt(activeProfiles);
-		showTooltip(activeProfileIndex, draggingPointIndex, canvas, e.clientX, e.clientY);
 	} else {
 		const HIT = 16 * scaleX;
 		const prev = hoveredPointIndex;
@@ -458,12 +458,9 @@ function moveEdit(e) {
 			return Math.hypot(cp.x * canvas.width - mx, (1 - cp.y) * canvas.height - my) < HIT;
 		});
 		if (hoveredPointIndex !== prev) drawCanvas(activeProfileIndex);
-		if (hoveredPointIndex >= 0) {
-			showTooltip(activeProfileIndex, hoveredPointIndex, canvas, e.clientX, e.clientY);
-		} else {
-			hideTooltip(activeProfileIndex);
-		}
 	}
+
+	showTooltip(activeProfileIndex, normX, canvas, e.clientX, e.clientY);
 }
 
 function endEdit() {
