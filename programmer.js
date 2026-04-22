@@ -140,8 +140,14 @@ function addElements() {
 			textContent: 'click to add · drag to move · dbl-click to remove',
 		});
 
+		const tooltip = Object.assign(document.createElement('div'), {
+			className: 'canvas-tooltip',
+			id: 'canvas-tooltip-' + (n + 1),
+		});
+
 		wrap.appendChild(canvas);
 		wrap.appendChild(hint);
+		wrap.appendChild(tooltip);
 		canvasArea.appendChild(wrap);
 	}
 
@@ -314,13 +320,14 @@ function drawCanvas(profileIndex) {
 	profile.controlPoints.forEach(function(cp, i) {
 		const cx = cp.x * w;
 		const cy = (1 - cp.y) * h;
-		const radius = i === hoveredPointIndex ? 8 : 5;
+		const active = i === hoveredPointIndex || i === draggingPointIndex;
+		const radius = active ? 12 : 8;
 		ctx.beginPath();
 		ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-		ctx.fillStyle = '#fff';
+		ctx.fillStyle = active ? color : '#fff';
 		ctx.fill();
 		ctx.strokeStyle = color;
-		ctx.lineWidth = 2;
+		ctx.lineWidth = 2.5;
 		ctx.stroke();
 	});
 
@@ -355,6 +362,28 @@ function startEdit(e) {
 	graphIt(activeProfiles);
 }
 
+function showTooltip(profileIndex, cpIndex, canvasEl, clientX, clientY) {
+	const tooltip = document.getElementById('canvas-tooltip-' + (profileIndex + 1));
+	if (!tooltip) return;
+	const profile = activeProfiles[profileIndex];
+	const cp = profile.controlPoints[cpIndex];
+	const vol = Math.ceil(parseInt(profile.volume));
+	const volIndex = Math.round(cp.x * (vol - 1));
+	const pressure = Math.round(cp.y * 100) / 10;
+	tooltip.textContent = pressure.toFixed(1) + ' bar  ·  ' + volIndex + ' ml';
+	const rect = canvasEl.getBoundingClientRect();
+	const tx = clientX - rect.left;
+	const ty = clientY - rect.top;
+	tooltip.style.left = tx + 'px';
+	tooltip.style.top = (ty - 36) + 'px';
+	tooltip.classList.add('visible');
+}
+
+function hideTooltip(profileIndex) {
+	const tooltip = document.getElementById('canvas-tooltip-' + (profileIndex + 1));
+	if (tooltip) tooltip.classList.remove('visible');
+}
+
 function moveEdit(e) {
 	const canvas = e.currentTarget;
 	const rect = canvas.getBoundingClientRect();
@@ -371,6 +400,7 @@ function moveEdit(e) {
 		};
 		drawCanvas(activeProfileIndex);
 		graphIt(activeProfiles);
+		showTooltip(activeProfileIndex, draggingPointIndex, canvas, e.clientX, e.clientY);
 	} else {
 		const HIT = 16 * scaleX;
 		const prev = hoveredPointIndex;
@@ -378,12 +408,18 @@ function moveEdit(e) {
 			return Math.hypot(cp.x * canvas.width - mx, (1 - cp.y) * canvas.height - my) < HIT;
 		});
 		if (hoveredPointIndex !== prev) drawCanvas(activeProfileIndex);
+		if (hoveredPointIndex >= 0) {
+			showTooltip(activeProfileIndex, hoveredPointIndex, canvas, e.clientX, e.clientY);
+		} else {
+			hideTooltip(activeProfileIndex);
+		}
 	}
 }
 
 function endEdit() {
 	draggingPointIndex = -1;
 	hoveredPointIndex = -1;
+	hideTooltip(activeProfileIndex);
 	drawCanvas(activeProfileIndex);
 }
 
