@@ -380,6 +380,8 @@ function moveEdit(e) {
 
 function endEdit() {
 	draggingPointIndex = -1;
+	hoveredPointIndex = -1;
+	drawCanvas(activeProfileIndex);
 }
 
 function removePoint(e) {
