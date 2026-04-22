@@ -6,6 +6,7 @@ for (let ii = 0; ii < 5; ii++) {
 		time: 0,
 		volLim: 0,
 		pressureArray: Array(240).fill("0.0"),
+		controlPoints: [{ x: 0, y: 0 }, { x: 1, y: 0 }],
 	})
 }
 
@@ -21,11 +22,68 @@ for (let s = 0; s < 240; s++) {
 	labelarray[s] = s + 1;
 }
 
+function douglasPeucker(pts, epsilon) {
+	if (pts.length < 3) return pts.slice();
+	let maxDist = 0, maxIdx = 0;
+	const start = pts[0], end = pts[pts.length - 1];
+	const dx = end.x - start.x, dy = end.y - start.y;
+	const len = Math.sqrt(dx * dx + dy * dy);
+	for (let i = 1; i < pts.length - 1; i++) {
+		let dist;
+		if (len === 0) {
+			const ex = pts[i].x - start.x, ey = pts[i].y - start.y;
+			dist = Math.sqrt(ex * ex + ey * ey);
+		} else {
+			const t = ((pts[i].x - start.x) * dx + (pts[i].y - start.y) * dy) / (len * len);
+			const px = start.x + t * dx - pts[i].x;
+			const py = start.y + t * dy - pts[i].y;
+			dist = Math.sqrt(px * px + py * py);
+		}
+		if (dist > maxDist) { maxDist = dist; maxIdx = i; }
+	}
+	if (maxDist > epsilon) {
+		const left = douglasPeucker(pts.slice(0, maxIdx + 1), epsilon);
+		const right = douglasPeucker(pts.slice(maxIdx), epsilon);
+		return left.slice(0, -1).concat(right);
+	}
+	return [{ x: pts[0].x, y: pts[0].y }, { x: pts[pts.length - 1].x, y: pts[pts.length - 1].y }];
+}
+
+function arrayToControlPoints(profileIndex) {
+	const profile = activeProfiles[profileIndex];
+	const vol = Math.ceil(parseInt(profile.volume));
+	if (vol < 2) {
+		profile.controlPoints = [{ x: 0, y: 0 }, { x: 1, y: 0 }];
+		return;
+	}
+	const pts = [];
+	for (let i = 0; i < vol; i++) {
+		pts.push({ x: i / (vol - 1), y: Math.max(0, Math.min(1, parseFloat(profile.pressureArray[i]) / 10)) });
+	}
+	profile.controlPoints = douglasPeucker(pts, 0.02);
+}
+
+function deriveArray(profileIndex) {
+	const profile = activeProfiles[profileIndex];
+	const vol = Math.ceil(parseInt(profile.volume));
+	const pts = [...profile.controlPoints].sort((a, b) => a.x - b.x);
+	for (let i = 0; i < 240; i++) {
+		if (i >= vol) { profile.pressureArray[i] = 0; continue; }
+		const t = vol === 1 ? 0 : i / (vol - 1);
+		let lo = pts[0], hi = pts[pts.length - 1];
+		for (let j = 0; j < pts.length - 1; j++) {
+			if (pts[j].x <= t && pts[j + 1].x >= t) { lo = pts[j]; hi = pts[j + 1]; break; }
+		}
+		const frac = hi.x === lo.x ? 0 : (t - lo.x) / (hi.x - lo.x);
+		const pressure = (lo.y + (hi.y - lo.y) * frac) * 10;
+		profile.pressureArray[i] = Math.max(0, Math.min(10, Math.round(pressure * 10) / 10));
+	}
+}
+
 var activeProfileIndex = 0;
 const PROFILE_COLORS = ['#FFBE86', '#FFE156', '#33E9CE', '#FFB5C2', '#3777FF'];
-var isPainting = false;
-var lastPaintIndex = -1;
-var lastPaintValue = 0;
+var draggingPointIndex = -1;
+var hoveredPointIndex = -1;
 var fileVersionValue = 2;
 
 function addElements() {
