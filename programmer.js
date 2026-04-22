@@ -177,6 +177,8 @@ function addElements() {
 
 function setActiveProfile(n) {
 	activeProfileIndex = n;
+	draggingPointIndex = -1;
+	hoveredPointIndex = -1;
 
 	for (let i = 0; i < 5; i++) {
 		document.getElementById('profile-item-' + (i + 1)).classList.toggle('active', i === n);
