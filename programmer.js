@@ -638,6 +638,7 @@ function handleFiles(fileList) {
 				name: lines[2 + (ofsets * j)],
 				volume: lines[3 + (ofsets * j)],
 				time: lines[4 + (ofsets * j)],
+				volLim: 0,
 				pressureArray: lines.slice(5 + (ofsets * j), ofsets - 1 + (ofsets * j))
 			});
 
