@@ -403,20 +403,49 @@ function startEdit(e) {
 	const mx = (e.clientX - rect.left) * scaleX;
 	const my = (e.clientY - rect.top) * scaleY;
 	const profile = activeProfiles[activeProfileIndex];
-	const HIT = 12 * scaleX;
+	const normX = Math.max(0, Math.min(1, mx / canvas.width));
+	const normY = Math.max(0, Math.min(1, 1 - my / canvas.height));
 
+	// Hit-test active point's handles first
+	if (activePointIndex >= 0 && activePointIndex < profile.controlPoints.length) {
+		const cp = profile.controlPoints[activePointIndex];
+		const outHx = (cp.x + cp.cpx) * canvas.width;
+		const outHy = (1 - cp.y - cp.cpy) * canvas.height;
+		const inHx  = (cp.x - cp.cpx) * canvas.width;
+		const inHy  = (1 - cp.y + cp.cpy) * canvas.height;
+		const HIT_H = 10 * scaleX;
+		if (Math.hypot(outHx - mx, outHy - my) < HIT_H) {
+			draggingHandle = 'out';
+			drawCanvas(activeProfileIndex);
+			return;
+		}
+		if (Math.hypot(inHx - mx, inHy - my) < HIT_H) {
+			draggingHandle = 'in';
+			drawCanvas(activeProfileIndex);
+			return;
+		}
+	}
+
+	// Hit-test anchors
+	const HIT = 12 * scaleX;
 	const idx = profile.controlPoints.findIndex(function(cp) {
 		return Math.hypot(cp.x * canvas.width - mx, (1 - cp.y) * canvas.height - my) < HIT;
 	});
 
 	if (idx >= 0) {
-		draggingPointIndex = idx;
+		activePointIndex = idx;
+		draggingAnchorIndex = idx;
 	} else {
-		profile.controlPoints.push({
-			x: Math.max(0, Math.min(1, mx / canvas.width)),
-			y: Math.max(0, Math.min(1, 1 - my / canvas.height)),
-		});
-		draggingPointIndex = profile.controlPoints.length - 1;
+		// Add new point with auto-computed handles
+		const newPt = { x: normX, y: normY, cpx: 0, cpy: 0 };
+		profile.controlPoints.push(newPt);
+		const sorted = [...profile.controlPoints].sort((a, b) => a.x - b.x);
+		const pos = sorted.indexOf(newPt);
+		const h = catmullRomHandles(sorted, pos);
+		newPt.cpx = h.cpx;
+		newPt.cpy = h.cpy;
+		activePointIndex = profile.controlPoints.length - 1;
+		draggingAnchorIndex = activePointIndex;
 	}
 
 	drawCanvas(activeProfileIndex);
@@ -479,14 +508,25 @@ function moveEdit(e) {
 	const mx = (e.clientX - rect.left) * scaleX;
 	const my = (e.clientY - rect.top) * scaleY;
 	const profile = activeProfiles[activeProfileIndex];
-
 	const normX = Math.max(0, Math.min(1, mx / canvas.width));
+	const normY = Math.max(0, Math.min(1, 1 - my / canvas.height));
 
-	if (draggingPointIndex >= 0) {
-		profile.controlPoints[draggingPointIndex] = {
-			x: normX,
-			y: Math.max(0, Math.min(1, 1 - my / canvas.height)),
-		};
+	if (draggingHandle !== null && activePointIndex >= 0) {
+		const cp = profile.controlPoints[activePointIndex];
+		if (draggingHandle === 'out') {
+			cp.cpx = normX - cp.x;
+			cp.cpy = normY - cp.y;
+		} else {
+			cp.cpx = cp.x - normX;
+			cp.cpy = cp.y - normY;
+		}
+		const len = Math.sqrt(cp.cpx * cp.cpx + cp.cpy * cp.cpy);
+		if (len > 0.5) { cp.cpx = (cp.cpx / len) * 0.5; cp.cpy = (cp.cpy / len) * 0.5; }
+		drawCanvas(activeProfileIndex);
+		graphIt(activeProfiles);
+	} else if (draggingAnchorIndex >= 0) {
+		profile.controlPoints[draggingAnchorIndex].x = normX;
+		profile.controlPoints[draggingAnchorIndex].y = normY;
 		drawCanvas(activeProfileIndex);
 		graphIt(activeProfiles);
 	} else {
@@ -502,8 +542,10 @@ function moveEdit(e) {
 }
 
 function endEdit() {
-	draggingPointIndex = -1;
+	draggingAnchorIndex = -1;
+	draggingHandle = null;
 	hoveredPointIndex = -1;
+	activePointIndex = -1;
 	hideTooltip(activeProfileIndex);
 	drawCanvas(activeProfileIndex);
 }
@@ -526,6 +568,8 @@ function removePoint(e) {
 	if (idx >= 0) {
 		profile.controlPoints.splice(idx, 1);
 		hoveredPointIndex = -1;
+		if (activePointIndex === idx) activePointIndex = -1;
+		else if (activePointIndex > idx) activePointIndex--;
 		drawCanvas(activeProfileIndex);
 		graphIt(activeProfiles);
 	}
