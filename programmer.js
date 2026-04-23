@@ -544,6 +544,8 @@ function moveEdit(e) {
 function endEdit() {
 	draggingAnchorIndex = -1;
 	draggingHandle = null;
+	hoveredPointIndex = -1;
+	hideTooltip(activeProfileIndex);
 	drawCanvas(activeProfileIndex);
 }
 
@@ -573,6 +575,7 @@ function removePoint(e) {
 
 	if (idx >= 0) {
 		profile.controlPoints.splice(idx, 1);
+		draggingAnchorIndex = -1;
 		hoveredPointIndex = -1;
 		if (activePointIndex === idx) activePointIndex = -1;
 		else if (activePointIndex > idx) activePointIndex--;
