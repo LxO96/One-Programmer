@@ -80,13 +80,8 @@ function deriveArray(profileIndex) {
 	for (let i = 0; i < 240; i++) {
 		if (i >= vol) { profile.pressureArray[i] = "0.0"; continue; }
 		const t = vol === 1 ? 0 : i / (vol - 1);
-		let lo = pts[0], hi = pts[pts.length - 1];
-		for (let j = 0; j < pts.length - 1; j++) {
-			if (pts[j].x <= t && pts[j + 1].x >= t) { lo = pts[j]; hi = pts[j + 1]; break; }
-		}
-		const frac = hi.x === lo.x ? 0 : (t - lo.x) / (hi.x - lo.x);
-		const pressure = (lo.y + (hi.y - lo.y) * frac) * 10;
-		profile.pressureArray[i] = Math.max(0, Math.min(10, Math.round(pressure * 10) / 10));
+		const y = sampleCurveAtX(pts, t);
+		profile.pressureArray[i] = Math.max(0, Math.min(10, Math.round(y * 100) / 10));
 	}
 }
 
@@ -372,52 +367,29 @@ function startEdit(e) {
 	graphIt(activeProfiles);
 }
 
-// Evaluates y of the midpoint-quadratic-bezier path (same as buildPath) at a given normalized x.
+// Evaluates y of the cubic bezier path at a given normalized x using bisection.
 function sampleCurveAtX(sortedPts, tx) {
 	const n = sortedPts.length;
 	if (n === 1) return sortedPts[0].y;
 	if (tx <= sortedPts[0].x) return sortedPts[0].y;
 	if (tx >= sortedPts[n - 1].x) return sortedPts[n - 1].y;
 
-	function lerp(x0, y0, x1, y1, qx) {
-		if (Math.abs(x1 - x0) < 1e-10) return y0;
-		return y0 + (y1 - y0) * (qx - x0) / (x1 - x0);
-	}
-
-	function quadY(x0, y0, cx, cy, x1, y1, qx) {
-		const a = x0 - 2 * cx + x1, b = 2 * cx - 2 * x0, c = x0 - qx;
-		let t;
-		if (Math.abs(a) < 1e-10) {
-			t = Math.abs(b) < 1e-10 ? 0 : -c / b;
-		} else {
-			const disc = b * b - 4 * a * c;
-			const sq = Math.sqrt(Math.max(0, disc));
-			const t1 = (-b + sq) / (2 * a), t2 = (-b - sq) / (2 * a);
-			t = (t1 >= -1e-6 && t1 <= 1 + 1e-6) ? t1 : t2;
+	for (let i = 0; i < n - 1; i++) {
+		const p0 = sortedPts[i], p3 = sortedPts[i + 1];
+		if (tx > p3.x) continue;
+		const p1x = p0.x + p0.cpx, p1y = p0.y + p0.cpy;
+		const p2x = p3.x - p3.cpx, p2y = p3.y - p3.cpy;
+		let lo = 0, hi = 1;
+		for (let iter = 0; iter < 20; iter++) {
+			const t = (lo + hi) / 2;
+			const mt = 1 - t;
+			const x = mt*mt*mt*p0.x + 3*mt*mt*t*p1x + 3*mt*t*t*p2x + t*t*t*p3.x;
+			if (x < tx) lo = t; else hi = t;
 		}
-		t = Math.max(0, Math.min(1, t));
-		return (1 - t) * (1 - t) * y0 + 2 * t * (1 - t) * cy + t * t * y1;
+		const t = (lo + hi) / 2, mt = 1 - t;
+		return mt*mt*mt*p0.y + 3*mt*mt*t*p1y + 3*mt*t*t*p2y + t*t*t*p3.y;
 	}
-
-	// With 2 points buildPath is just a line
-	if (n === 2) return lerp(sortedPts[0].x, sortedPts[0].y, sortedPts[1].x, sortedPts[1].y, tx);
-
-	const mid = function(i, j) { return { x: (sortedPts[i].x + sortedPts[j].x) / 2, y: (sortedPts[i].y + sortedPts[j].y) / 2 }; };
-
-	// First segment: degenerate quad (line) from pts[0] to mid(0,1)
-	const m01 = mid(0, 1);
-	if (tx <= m01.x) return lerp(sortedPts[0].x, sortedPts[0].y, m01.x, m01.y, tx);
-
-	// Middle segments: quad from mid(i-1,i) to mid(i,i+1) with ctrl pts[i]
-	for (let i = 1; i < n - 1; i++) {
-		const s = mid(i - 1, i);
-		const e = mid(i, i + 1);
-		if (tx <= e.x) return quadY(s.x, s.y, sortedPts[i].x, sortedPts[i].y, e.x, e.y, tx);
-	}
-
-	// Last segment: line from mid(n-2,n-1) to pts[n-1]
-	const mLast = mid(n - 2, n - 1);
-	return lerp(mLast.x, mLast.y, sortedPts[n - 1].x, sortedPts[n - 1].y, tx);
+	return sortedPts[n - 1].y;
 }
 
 function showTooltip(profileIndex, normX, canvasEl, clientX, clientY) {
