@@ -327,7 +327,6 @@ function drawCanvas(profileIndex) {
 	ctx.stroke();
 
 	// Control point handles — iterate insertion-order so index i matches hoveredPointIndex
-	const sortedForLabel = [...profile.controlPoints].sort((a, b) => a.x - b.x);
 	profile.controlPoints.forEach(function(cp, i) {
 		const cx = cp.x * w;
 		const cy = (1 - cp.y) * h;
@@ -340,27 +339,6 @@ function drawCanvas(profileIndex) {
 		ctx.strokeStyle = color;
 		ctx.lineWidth = 2.5;
 		ctx.stroke();
-
-		// Label above handle
-		const curveY = sampleCurveAtX(sortedForLabel, cp.x);
-		const pressure = (Math.round(curveY * 100) / 10).toFixed(1);
-		const volIndex = Math.round(cp.x * (vol - 1));
-		const label = pressure + ' bar · ' + volIndex + ' ml';
-		const fontSize = 11;
-		ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
-		const tw = ctx.measureText(label).width;
-		const pad = 6;
-		const bw = tw + pad * 2;
-		const bh = fontSize + pad * 2;
-		const bx = Math.max(2, Math.min(w - bw - 2, cx - bw / 2));
-		const by = cy - radius - 6 - bh;
-		ctx.fillStyle = 'rgba(20,30,48,0.82)';
-		ctx.beginPath();
-		ctx.roundRect(bx, by, bw, bh, 5);
-		ctx.fill();
-		ctx.fillStyle = '#fff';
-		ctx.textBaseline = 'middle';
-		ctx.fillText(label, bx + pad, by + bh / 2);
 	});
 
 	ctx.restore();
