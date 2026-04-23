@@ -87,7 +87,9 @@ function deriveArray(profileIndex) {
 
 var activeProfileIndex = 0;
 const PROFILE_COLORS = ['#FFBE86', '#FFE156', '#33E9CE', '#FFB5C2', '#3777FF'];
-var draggingPointIndex = -1;
+var activePointIndex = -1;
+var draggingAnchorIndex = -1;
+var draggingHandle = null;
 var hoveredPointIndex = -1;
 var fileVersionValue = 2;
 
@@ -188,7 +190,9 @@ function addElements() {
 
 function setActiveProfile(n) {
 	activeProfileIndex = n;
-	draggingPointIndex = -1;
+	activePointIndex = -1;
+	draggingAnchorIndex = -1;
+	draggingHandle = null;
 	hoveredPointIndex = -1;
 
 	for (let i = 0; i < 5; i++) {
