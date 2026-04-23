@@ -257,7 +257,7 @@ function drawCanvas(profileIndex) {
 	ctx.clearRect(0, 0, w, h);
 
 	// Pre-infusion zone (~first 18ml)
-	const preW = Math.min(w, (18 / vol) * w);
+	const preW = Math.min(w, (80 / vol) * w);
 	ctx.fillStyle = 'rgba(55, 119, 255, 0.05)';
 	ctx.fillRect(0, 0, preW, h);
 
@@ -295,12 +295,14 @@ function drawCanvas(profileIndex) {
 
 	function buildPath() {
 		ctx.moveTo(cpX(pts[0]), cpY(pts[0]));
-		for (let i = 1; i < pts.length; i++) {
-			const x0 = cpX(pts[i - 1]), y0 = cpY(pts[i - 1]);
-			const x1 = cpX(pts[i]),     y1 = cpY(pts[i]);
-			ctx.quadraticCurveTo(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+		for (let i = 0; i < pts.length - 1; i++) {
+			const p = pts[i], q = pts[i + 1];
+			ctx.bezierCurveTo(
+				cpX(p) + p.cpx * w,  cpY(p) - p.cpy * h,
+				cpX(q) - q.cpx * w,  cpY(q) + q.cpy * h,
+				cpX(q), cpY(q)
+			);
 		}
-		ctx.lineTo(cpX(pts[pts.length - 1]), cpY(pts[pts.length - 1]));
 	}
 
 	const r = parseInt(color.slice(1, 3), 16);
@@ -325,11 +327,40 @@ function drawCanvas(profileIndex) {
 	ctx.lineCap = 'round';
 	ctx.stroke();
 
-	// Control point handles — iterate insertion-order so index i matches hoveredPointIndex
+	// Draw bezier handles for active point
+	if (activePointIndex >= 0 && activePointIndex < profile.controlPoints.length) {
+		const cp = profile.controlPoints[activePointIndex];
+		const ax = cp.x * w, ay = (1 - cp.y) * h;
+		const outHx = (cp.x + cp.cpx) * w, outHy = (1 - cp.y - cp.cpy) * h;
+		const inHx  = (cp.x - cp.cpx) * w, inHy  = (1 - cp.y + cp.cpy) * h;
+
+		ctx.strokeStyle = 'rgba(180,200,220,0.7)';
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([4, 3]);
+		ctx.beginPath();
+		ctx.moveTo(inHx, inHy);
+		ctx.lineTo(ax, ay);
+		ctx.lineTo(outHx, outHy);
+		ctx.stroke();
+		ctx.setLineDash([]);
+
+		[[outHx, outHy], [inHx, inHy]].forEach(function(h) {
+			ctx.beginPath();
+			ctx.arc(h[0], h[1], 6, 0, Math.PI * 2);
+			ctx.fillStyle = '#fff';
+			ctx.fill();
+			ctx.strokeStyle = color;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+		});
+	}
+
+	// Anchor circles and labels — iterate insertion-order so index i matches activePointIndex/hoveredPointIndex
+	const sortedForLabel = [...profile.controlPoints].sort((a, b) => a.x - b.x);
 	profile.controlPoints.forEach(function(cp, i) {
 		const cx = cp.x * w;
 		const cy = (1 - cp.y) * h;
-		const active = i === hoveredPointIndex || i === draggingPointIndex;
+		const active = i === activePointIndex || i === hoveredPointIndex;
 		const radius = active ? 12 : 8;
 		ctx.beginPath();
 		ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -338,6 +369,27 @@ function drawCanvas(profileIndex) {
 		ctx.strokeStyle = color;
 		ctx.lineWidth = 2.5;
 		ctx.stroke();
+
+		// Label above anchor
+		const curveY = sampleCurveAtX(sortedForLabel, cp.x);
+		const pressure = (Math.round(curveY * 100) / 10).toFixed(1);
+		const volIndex = Math.round(cp.x * (vol - 1));
+		const label = pressure + ' bar · ' + volIndex + ' ml';
+		const fontSize = 11;
+		ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+		const tw = ctx.measureText(label).width;
+		const pad = 6;
+		const bw = tw + pad * 2;
+		const bh = fontSize + pad * 2;
+		const bx = Math.max(2, Math.min(w - bw - 2, cx - bw / 2));
+		const by = cy - radius - 6 - bh;
+		ctx.fillStyle = 'rgba(20,30,48,0.82)';
+		ctx.beginPath();
+		ctx.roundRect(bx, by, bw, bh, 5);
+		ctx.fill();
+		ctx.fillStyle = '#fff';
+		ctx.textBaseline = 'middle';
+		ctx.fillText(label, bx + pad, by + bh / 2);
 	});
 
 	ctx.restore();
