@@ -81,7 +81,7 @@ function deriveArray(profileIndex) {
 		if (i >= vol) { profile.pressureArray[i] = "0.0"; continue; }
 		const t = vol === 1 ? 0 : i / (vol - 1);
 		const y = sampleCurveAtX(pts, t);
-		profile.pressureArray[i] = Math.max(0, Math.min(10, Math.round(y * 100) / 10));
+		profile.pressureArray[i] = String(Math.max(0, Math.min(10, Math.round(y * 100) / 10)));
 	}
 }
 
