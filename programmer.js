@@ -139,7 +139,7 @@ function addElements() {
 		canvas.addEventListener('mousedown', startEdit);
 		canvas.addEventListener('mousemove', moveEdit);
 		canvas.addEventListener('mouseup', endEdit);
-		canvas.addEventListener('mouseleave', endEdit);
+		canvas.addEventListener('mouseleave', cancelEdit);
 		canvas.addEventListener('dblclick', removePoint);
 
 		const hint = Object.assign(document.createElement('span'), {
@@ -542,6 +542,12 @@ function moveEdit(e) {
 }
 
 function endEdit() {
+	draggingAnchorIndex = -1;
+	draggingHandle = null;
+	drawCanvas(activeProfileIndex);
+}
+
+function cancelEdit() {
 	draggingAnchorIndex = -1;
 	draggingHandle = null;
 	hoveredPointIndex = -1;
