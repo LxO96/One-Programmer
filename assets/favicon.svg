@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Crem One Programmer">
+  <!-- Simplified mark for small sizes. The tangent and handle dots of the full logo
+       collapse into noise below roughly 28px, so only the curve and its anchor survive,
+       both drawn heavier to hold up in a browser tab. Same asymmetric rise-and-fall, so
+       it still reads as the same mark. -->
+  <path d="M7 52 C 13 52, 13 14, 28 14 C 44 14, 47 30, 58 38"
+        fill="none" stroke="#1976d2" stroke-width="8"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="28" cy="14" r="9" fill="#1976d2"/>
+</svg>

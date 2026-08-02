@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>One Profile Programmer</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <script type="text/javascript" src="settings.js"></script>
   <script type="text/javascript" src="programmer.js"></script>
   <link rel="stylesheet" href="proggStyle.css">
@@ -12,9 +13,14 @@
 
 <body>
   <header>
-    <div>
-      <h2>Crem One Programmer</h2>
-      <p class="header-sub">Pressure profile editor</p>
+    <div class="brand">
+      <!-- Decorative: the wordmark beside it already names the app, so announcing the
+           logo too would just repeat it to a screen reader. -->
+      <img class="brand-mark" src="assets/logo.svg" alt="" width="34" height="34">
+      <div>
+        <h2>Crem One Programmer</h2>
+        <p class="header-sub">Pressure profile editor</p>
+      </div>
     </div>
     <div class="header-actions">
       <button id="settingsButton" class="icon-button" title="Settings" aria-label="Settings">⚙</button>

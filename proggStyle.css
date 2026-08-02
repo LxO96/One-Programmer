@@ -23,6 +23,9 @@ header {
   justify-content: space-between;
   flex-shrink: 0;
 }
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.brand-mark { display: block; flex-shrink: 0; }
+
 header h2 { font-size: 16px; font-weight: 700; color: #222; }
 .header-sub { font-size: 11px; color: #999; margin-top: 2px; display: block; }
 
@@ -515,6 +518,9 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
 @media (max-width: 430px) {
   .header-sub { display: none; }
   header h2 { font-size: 14px; }
+  /* Without the strapline under it the mark can shrink to match the wordmark. */
+  .brand { gap: 8px; }
+  .brand-mark { width: 26px; height: 26px; }
   .editor-canvas-wrap { height: 46vh; }
   .canvas-hint { font-size: 9px; bottom: 6px; right: 8px; }
   .field-input.name-input { width: 96px; }

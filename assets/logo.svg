@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Crem One Programmer">
+  <!-- A pressure curve with one of its control points selected: the anchor, its two
+       handles, and the tangent between them.
+
+       The geometry is real. The handle dots sit on the cubic's actual control points,
+       which is why the tangent is horizontal at the peak, and the control x-coords run
+       5 < 11 < 11 < 27 < 43 < 46 < 60 — left to right, so the curve is single-valued in
+       x, the same rule the editor enforces on the profiles it draws.
+
+       The rise is short and steep, the fall long and shallow. That asymmetry is what
+       makes it read as a shot rather than as a hill. -->
+  <path d="M5 53 C 11 53, 11 15, 27 15 C 43 15, 46 30, 60 38"
+        fill="none" stroke="#1976d2" stroke-width="5" stroke-opacity=".45"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Handles are pushed far enough out that a clear run of tangent shows either side of
+       the anchor; any closer and the dashes vanish into the gap between the dots. -->
+  <path d="M11 15 H43" fill="none" stroke="#1976d2" stroke-width="2"
+        stroke-linecap="round" stroke-dasharray="3 2.5"/>
+  <circle cx="11" cy="15" r="3" fill="#1976d2"/>
+  <circle cx="43" cy="15" r="3" fill="#1976d2"/>
+  <circle cx="27" cy="15" r="6" fill="#1976d2"/>
+</svg>

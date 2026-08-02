@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" width="76" height="76" alt="">
+
 # Crem One Programmer
 
 A pressure profile editor for the [Crem One](https://cremcoffee.com/) espresso machine. It
