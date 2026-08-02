@@ -1047,6 +1047,9 @@ function fixDropAera() {
 
 	function highlight() {
 		dropArea.classList.add('highlight');
+		// The previous result is about to be replaced, so stop showing it the moment a
+		// new file is over the zone.
+		setDropStatus('');
 	}
 	function unhighlight() {
 		dropArea.classList.remove('highlight');
@@ -1056,6 +1059,11 @@ function fixDropAera() {
 		var dt = e.dataTransfer;
 		var files = dt.files;
 
+		if (!files || files.length === 0) {
+			// Dragging selected text or a link rather than a file lands here.
+			setDropStatus('That was not a file. Drop a .txt profile export.', 'error');
+			return;
+		}
 		handleFiles(files);
 	}
 }
@@ -1078,67 +1086,133 @@ document.addEventListener("DOMContentLoaded", function(event) {
 	document.getElementById('clearAllButton').addEventListener('click', confirmClearAll);
 });
 
-// Function to handle selected files
-function handleFiles(fileList) {
-	// Get the number of files selected
-	const numFiles = fileList.length;
-	// Display the number of files in the console
-	console.debug("Read: " + numFiles + " files.");
-	// Create a new FileReader object to read the contents of the file
-	let reader = new FileReader();
+// Message under the drop zone. `kind` is one of 'busy', 'ok', 'error' — anything else
+// clears it. The element is aria-live, so the outcome reaches a screen reader too.
+function setDropStatus(message, kind) {
+	const el = document.getElementById('dropStatus');
+	if (!el) return;
+	el.textContent = message || '';
+	el.className = 'drop-status' + (kind ? ' ' + kind : '');
+	el.hidden = !message;
+}
 
-	// Event handler when the file is successfully loaded
-	reader.onload = (e) => {
-		// Get the file content as a string
-		let file = e.target.result;
-		file = file.replaceAll('\n', "");
-		var lines = file.split('\r');
+// Largest plausible profile export is a few tens of kilobytes; anything far past that
+// is the wrong file, and reading it as text would be pointless.
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 
-		// Determine the value of 'ofsets' based on the number of lines in the file
-		const inputVersion = (lines.length < 400) ? 1 : 2;
-		const ofsets = (inputVersion < 2) ? 66 : 246;
+// Parses a Crem One export into five profiles.
+//
+// Returns a result object instead of throwing or assigning to globals: the previous
+// version indexed straight into the line array, so a truncated file threw a TypeError
+// part-way through and a merely malformed one loaded silently as NaN volumes and
+// undefined names. Nothing here touches the editor's state, so a file that fails to
+// parse leaves the profiles you already had exactly as they were.
+function parseProfileFile(text) {
+	const lines = text.replaceAll('\n', '').split('\r');
+	// Same heuristic the exporter's two formats imply: v1 is 60 steps, v2 is 240.
+	const version = lines.length < 400 ? 1 : 2;
+	const stride = version < 2 ? 66 : 246;
 
+	// The final block's trailing blank line may be missing, hence the -1.
+	if (lines.length < stride * 5 - 1) {
+		return { ok: false, error: 'Too short to hold five profiles — expected about '
+			+ (stride * 5) + ' lines, found ' + lines.length + '.' };
+	}
 
-		console.debug(lines);
-		readProfiles = [];
+	const profiles = [];
+	for (let i = 0; i < 5; i++) {
+		const base = i * stride;
+		const nameLine = lines[2 + base] || '';
+		const volLine = lines[3 + base] || '';
+		const timeLine = lines[4 + base] || '';
 
-		// Loop through each set of data in the file
-		for (let i = 0; i < 5; i++) {
-			// Process each line of data for a given set
-			lines[2 + i * ofsets] = lines[2 + i * ofsets].substring(5);
-			lines[3 + i * ofsets] = parseInt(lines[3 + i * ofsets].substring(3));
-			lines[4 + i * ofsets] = parseInt(lines[4 + i * ofsets].substring(5));
-			for (let l = 5; l < ofsets - 1; l++) {
-				lines[l + i * ofsets] = parseFloat(lines[l + i * ofsets].substring(4));
+		if (!/^NAME:/.test(nameLine) || !/^ML:/.test(volLine)) {
+			return { ok: false, error: 'Profile ' + (i + 1) + ' is not laid out as expected. '
+				+ 'Is this a Crem One profile export?' };
+		}
+
+		const volume = parseInt(volLine.substring(3), 10);
+		const time = parseInt(timeLine.substring(5), 10);
+
+		const pressures = [];
+		for (let l = 5; l < stride - 1; l++) {
+			const raw = lines[l + base];
+			const v = parseFloat((raw || '').substring(4));
+			if (!isFinite(v)) {
+				return { ok: false, error: 'Profile ' + (i + 1) + ' has an unreadable pressure '
+					+ 'on line ' + (l + base + 1) + '.' };
 			}
+			pressures.push(Math.max(0, Math.min(10, v)));
 		}
 
-		// Read profile data and store it in the 'readProfiles' array
-		for (let j = 0; j < 5; j++) {
-			console.debug("Reading profile" + (j + 1))
-			readProfiles.push({
-				name: lines[2 + (ofsets * j)],
-				volume: lines[3 + (ofsets * j)],
-				time: lines[4 + (ofsets * j)],
-				volLim: 0,
-				pressureArray: lines.slice(5 + (ofsets * j), ofsets - 1 + (ofsets * j))
-			});
+		profiles.push({
+			name: nameLine.substring(5).trim(),
+			volume: isFinite(volume) ? Math.max(4, Math.min(240, volume)) : 240,
+			time: isFinite(time) ? time : 0,
+			volLim: 0,
+			pressureArray: pressures,
+		});
+	}
+	return { ok: true, version: version, profiles: profiles };
+}
 
-		}
-		readProfiles = interpolateProfile(readProfiles, 240);
-		console.debug(readProfiles);
-		activeProfiles = readProfiles;
-		for (let i = 0; i < 5; i++) {
-			arrayToControlPoints(i);
-			document.getElementById('profile-list-name-' + (i + 1)).textContent = activeProfiles[i].name || ('Profile ' + (i + 1));
-			document.getElementById('profile-list-vol-' + (i + 1)).textContent = activeProfiles[i].volume + 'ml';
-			drawCanvas(i);
-		}
-		setActiveProfile(activeProfileIndex);
+// Commits a parsed set of profiles to the editor and redraws everything.
+function applyProfiles(profiles) {
+	readProfiles = interpolateProfile(profiles, 240);
+	activeProfiles = readProfiles;
+	for (let i = 0; i < 5; i++) {
+		arrayToControlPoints(i);
+		document.getElementById('profile-list-name-' + (i + 1)).textContent =
+			activeProfiles[i].name || ('Profile ' + (i + 1));
+		document.getElementById('profile-list-vol-' + (i + 1)).textContent =
+			activeProfiles[i].volume + 'ml';
+		drawCanvas(i);
+	}
+	setActiveProfile(activeProfileIndex);
+}
+
+function handleFiles(fileList) {
+	if (!fileList || fileList.length === 0) return;
+	const file = fileList[0];
+
+	if (file.size > MAX_IMPORT_BYTES) {
+		setDropStatus('That file is far too big to be a profile export.', 'error');
+		return;
+	}
+
+	// A profile file holds all five profiles, so a second file would have nothing left
+	// to load into. Say so on the result rather than only while reading, or the notice
+	// disappears the moment the import succeeds.
+	const extra = fileList.length > 1
+		? ' Only the first of ' + fileList.length + ' files was used.' : '';
+
+	setDropStatus('Reading ' + file.name + '…' + extra, 'busy');
+
+	const reader = new FileReader();
+
+	reader.onerror = function() {
+		setDropStatus('Could not read ' + file.name + '.', 'error');
 	};
 
-	// Read the contents of the first selected file as text
-	reader.readAsText(fileList[0]);
+	reader.onload = function(e) {
+		let result;
+		try {
+			result = parseProfileFile(e.target.result);
+		} catch (err) {
+			console.debug('import failed', err);
+			result = { ok: false, error: 'That file could not be read as a Crem One profile.' };
+		}
+		if (!result.ok) {
+			// Deliberately leaves the current profiles untouched.
+			setDropStatus(result.error, 'error');
+			return;
+		}
+		applyProfiles(result.profiles);
+		setDropStatus('Loaded 5 profiles from ' + file.name + ' (v' + result.version + ').'
+			+ extra, 'ok');
+	};
+
+	reader.readAsText(file);
 }
 
 function interpolateProfile(originalProfiles, wantedLenght) {

@@ -162,6 +162,12 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
 .demo-cursor { fill: #46536b; stroke: #fff; stroke-width: 1.2; }
 .demo-ripple { fill: none; stroke: #3777FF; stroke-width: 2; }
 
+.demo-dropzone { fill: none; stroke: #ccd6e3; stroke-width: 2; stroke-dasharray: 5 4; }
+.demo-dropfill { fill: rgba(55, 119, 255, .08); }
+.demo-file { fill: #8595a8; }
+.demo-fileline { stroke: #fff; stroke-width: 2; stroke-linecap: round; fill: none; }
+.demo-loaded { stroke-width: 2.5; }
+
 .setting-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .setting-help { font-size: 11px; color: #999; line-height: 1.5; }
 
@@ -266,7 +272,27 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
   transition: border-color 0.15s;
 }
 .drop-zone-inner p { font-size: 11px; color: #999; margin-bottom: 8px; display: block; }
-#drop-area.highlight .drop-zone-inner { border-color: #1976d2; }
+#drop-area.highlight .drop-zone-inner {
+  border-color: #1976d2;
+  background: #f0f6fe;
+  border-style: solid;
+}
+#drop-area.highlight .drop-zone-inner p { color: #1976d2; }
+
+/* Outcome of the last import. Colour alone doesn't carry the meaning — the text says
+   what happened — so this stays readable without colour vision. */
+.drop-status {
+  margin-top: 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  border-radius: 5px;
+  padding: 6px 9px;
+  word-break: break-word;
+}
+.drop-status[hidden] { display: none; }
+.drop-status.busy  { background: #f1f3f6; color: #6b7785; }
+.drop-status.ok    { background: #e8f5ec; color: #1f7a3d; }
+.drop-status.error { background: #fdeded; color: #a52a2a; }
 
 .button {
   display: inline-block;
