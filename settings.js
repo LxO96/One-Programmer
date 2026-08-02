@@ -6,11 +6,10 @@
 
 const SETTINGS_KEY = 'cremOne.settings';
 const WELCOME_KEY = 'cremOne.welcomeSeen';
-// Pump millilitres, not what reaches the cup — see PUMP_TO_CUP in programmer.js. An
-// 18g puck soaks up roughly 36ml before it starts giving anything back, so ~30ml is
-// about what it takes to wet it through without pushing the shot. That is a quarter
-// of the 120ml default profile, which is also what it looks like on the graph.
-const DEFAULT_PRE_INFUSION_ML = 30;
+// Pump millilitres, not what reaches the cup — see the volume note in programmer.js.
+// 80ml is what the Crem One itself pre-infuses for, so this matches the machine rather
+// than being a preference. Change it only if your machine is set up differently.
+const DEFAULT_PRE_INFUSION_ML = 80;
 const MAX_PRE_INFUSION_ML = 240;
 
 var appSettings = { preInfusionMl: DEFAULT_PRE_INFUSION_ML };

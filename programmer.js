@@ -22,9 +22,11 @@ const PRESET_PROFILES = [
 		stops: [[0, 2], [20, 3], [35, 9], [90, 9], [119, 7.5]],
 	},
 	{
-		// Ristretto — same pressure, less water, so it comes out thicker and sweeter.
-		name: 'SHORT', volume: 70,      // ≈21ml out
-		stops: [[0, 2], [15, 3], [28, 9.5], [69, 8.5]],
+		// Shorter and thicker than CLASSIC. It cannot go much below this: the machine
+		// pre-infuses for the first 80ml, so a profile shorter than that would be all
+		// pre-infusion and no extraction.
+		name: 'SHORT', volume: 100,     // ≈30ml out
+		stops: [[0, 2], [20, 3], [34, 9.5], [99, 8.5]],
 	},
 	{
 		// Lungo — more water at gentler pressure to avoid stripping the puck.
