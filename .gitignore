@@ -1,0 +1,8 @@
+# Editor and agent tooling, not part of the app
+.vscode/
+.claude/
+.superpowers/
+
+# Local working copy, not intended for version control — delete this line if you
+# want it tracked
+programmer copy.js

@@ -3,9 +3,10 @@
 
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>One Profile Programmer</title>
+  <script type="text/javascript" src="settings.js"></script>
   <script type="text/javascript" src="programmer.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.5.1/chart.js"></script>
   <link rel="stylesheet" href="proggStyle.css">
 </head>
 
@@ -15,7 +16,10 @@
       <h2>Crem One Programmer</h2>
       <p class="header-sub">Pressure profile editor</p>
     </div>
-    <button id="bigOutButton">Export ↓</button>
+    <div class="header-actions">
+      <button id="settingsButton" class="icon-button" title="Settings" aria-label="Settings">⚙</button>
+      <button id="bigOutButton">Export ↓</button>
+    </div>
   </header>
 
   <div id="app">
@@ -31,10 +35,6 @@
         <div class="section-label">Profiles</div>
         <div id="profile-list"></div>
       </div>
-      <div id="graphbox">
-        <div class="section-label">Overview</div>
-        <canvas id="myChart" width="268" height="150"></canvas>
-      </div>
     </div>
 
     <div id="right-panel">
@@ -48,11 +48,211 @@
             <button class="ver-btn active" id="ver2">v2</button>
           </div>
         </div>
+        <div class="control-group control-group-end">
+          <button class="danger-btn" id="clearButton">Clear profile</button>
+          <button class="danger-btn" id="clearAllButton">Clear all</button>
+        </div>
       </div>
     </div>
   </div>
 
   <a download="info.txt" id="downloadlink" style="display:none">Download</a>
+
+  <div class="modal-backdrop" id="modal-backdrop" hidden>
+
+    <div class="modal modal-narrow" id="confirm-modal" role="alertdialog" aria-modal="true"
+         aria-labelledby="confirm-title" aria-describedby="confirm-text" hidden>
+      <div class="modal-head">
+        <h3 id="confirm-title">Are you sure?</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-text"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="modal-secondary" data-close-modal>Cancel</button>
+        <button class="modal-danger" id="confirmButton">Confirm</button>
+      </div>
+    </div>
+
+    <div class="modal" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+      <div class="modal-head">
+        <h3 id="settings-title">Settings</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-row">
+          <label class="field-label" for="preInfusionBox">Pre-infusion</label>
+          <input class="field-input num-input" id="preInfusionBox" type="number" min="0" max="240">
+          <span class="unit-label">ml</span>
+        </div>
+        <p class="setting-help">
+          Sets how much of the editor is shaded as the pre-infusion zone. This is a
+          drawing guide only — the profile file has no pre-infusion field, so the
+          value is not exported to the machine.
+        </p>
+        <p class="setting-help">
+          <a href="#" id="showIntroAgain">Show the intro again</a>
+        </p>
+      </div>
+      <div class="modal-foot">
+        <button class="modal-primary" data-close-modal>Done</button>
+      </div>
+    </div>
+
+    <div class="modal" id="welcome-modal" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
+      <div class="modal-head">
+        <h3 id="welcome-title">Welcome to the Crem One Programmer</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          This is a pressure profile editor for the Crem One. It reads the machine's
+          profile file, lets you reshape all five profiles by hand, and writes a new
+          file you can load back onto the machine.
+        </p>
+
+        <h4>Reading the graph</h4>
+        <p>
+          Volume runs left to right across the profile's total millilitres. Pressure
+          runs bottom to top, from 0 to 10 bar. The curve is the pressure the machine
+          holds at each point of the shot.
+        </p>
+
+        <h4>The two zones</h4>
+        <p>
+          The shaded band on the left is <strong>pre-infusion</strong> — low pressure
+          that wets the puck evenly before the shot proper, which helps avoid
+          channelling. The rest is <strong>extraction</strong>, where your pressure
+          curve actually pulls the shot. You can change where the boundary sits under
+          the ⚙ settings button.
+        </p>
+
+        <h4>Editing a curve</h4>
+
+        <div class="demo-list">
+
+          <div class="demo">
+            <svg viewBox="0 0 260 96" role="img"
+                 aria-label="A cursor clicks an empty part of the graph and a new point appears, bending the curve up to meet it">
+              <path class="demo-axis" d="M8 82 H252" />
+              <path class="demo-curve" d="M14 76 C 80 76, 170 44, 246 34">
+                <animate attributeName="d" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.42;0.55;0.92;1"
+                  values="M14 76 C 80 76, 170 44, 246 34;
+                          M14 76 C 80 76, 170 44, 246 34;
+                          M14 76 C 56 76, 92 30, 124 30 C 166 30, 200 38, 246 34;
+                          M14 76 C 56 76, 92 30, 124 30 C 166 30, 200 38, 246 34;
+                          M14 76 C 80 76, 170 44, 246 34" />
+              </path>
+              <circle class="demo-ripple" cx="124" cy="30" r="0" opacity="0">
+                <animate attributeName="r" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.42;0.46;0.62;1" values="0;0;4;18;18" />
+                <animate attributeName="opacity" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.42;0.46;0.62;1" values="0;0;0.9;0;0" />
+              </circle>
+              <circle class="demo-point" cx="124" cy="30" r="0">
+                <animate attributeName="r" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.42;0.52;0.58;0.92;1" values="0;0;8;6.5;6.5;0" />
+              </circle>
+              <g class="demo-cursor" transform="translate(34 72)">
+                <animateTransform attributeName="transform" type="translate" dur="4s"
+                  repeatCount="indefinite" keyTimes="0;0.4;0.92;1"
+                  values="34 72; 124 30; 124 30; 34 72" />
+                <path d="M0 0 L0 13 L3.6 9.8 L6.2 15 L8.4 14 L5.9 8.9 L10.4 8.4 Z" />
+              </g>
+            </svg>
+            <div class="demo-caption"><strong>Click</strong> anywhere to add a point — double-click one to remove it</div>
+          </div>
+
+          <div class="demo">
+            <svg viewBox="0 0 260 96" role="img"
+                 aria-label="A point on the curve is dragged up and down, and the curve follows it">
+              <path class="demo-axis" d="M8 82 H252" />
+              <path class="demo-curve" d="M14 76 C 58 76, 92 58, 124 58 C 164 58, 198 38, 246 32">
+                <animate attributeName="d" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.5;1"
+                  values="M14 76 C 58 76, 92 58, 124 58 C 164 58, 198 38, 246 32;
+                          M14 76 C 58 76, 92 22, 124 22 C 164 22, 198 28, 246 32;
+                          M14 76 C 58 76, 92 58, 124 58 C 164 58, 198 38, 246 32" />
+              </path>
+              <circle class="demo-point-on" cx="124" cy="58" r="7">
+                <animate attributeName="cy" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.5;1" values="58;22;58" />
+              </circle>
+              <g class="demo-cursor" transform="translate(124 58)">
+                <animateTransform attributeName="transform" type="translate" dur="4s"
+                  repeatCount="indefinite" keyTimes="0;0.5;1"
+                  values="124 58; 124 22; 124 58" />
+                <path d="M0 0 L0 13 L3.6 9.8 L6.2 15 L8.4 14 L5.9 8.9 L10.4 8.4 Z" />
+              </g>
+            </svg>
+            <div class="demo-caption"><strong>Drag</strong> a point to move it</div>
+          </div>
+
+          <div class="demo">
+            <svg viewBox="0 0 260 96" role="img"
+                 aria-label="One of a point's two handles is pulled outward, flattening the curve leaving that point while the other side stays short">
+              <path class="demo-axis" d="M8 82 H252" />
+              <path class="demo-curve" d="M14 76 C 52 76, 92 57, 124 46 C 156 35, 208 30, 246 28">
+                <animate attributeName="d" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.45;0.55;1"
+                  values="M14 76 C 52 76, 92 57, 124 46 C 156 35, 208 30, 246 28;
+                          M14 76 C 52 76, 90 46, 124 46 C 196 46, 218 32, 246 28;
+                          M14 76 C 52 76, 90 46, 124 46 C 196 46, 218 32, 246 28;
+                          M14 76 C 52 76, 92 57, 124 46 C 156 35, 208 30, 246 28" />
+              </path>
+              <path class="demo-tangent" d="M92 57 L124 46 L156 35">
+                <animate attributeName="d" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.45;0.55;1"
+                  values="M92 57 L124 46 L156 35;
+                          M90 46 L124 46 L196 46;
+                          M90 46 L124 46 L196 46;
+                          M92 57 L124 46 L156 35" />
+              </path>
+              <circle class="demo-handle" cx="92" cy="57" r="5">
+                <animate attributeName="cx" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.45;0.55;1" values="92;90;90;92" />
+                <animate attributeName="cy" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.45;0.55;1" values="57;46;46;57" />
+              </circle>
+              <circle class="demo-handle" cx="156" cy="35" r="5">
+                <animate attributeName="cx" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.45;0.55;1" values="156;196;196;156" />
+                <animate attributeName="cy" dur="4s" repeatCount="indefinite"
+                  keyTimes="0;0.45;0.55;1" values="35;46;46;35" />
+              </circle>
+              <circle class="demo-point-on" cx="124" cy="46" r="7" />
+              <g class="demo-cursor" transform="translate(156 35)">
+                <animateTransform attributeName="transform" type="translate" dur="4s"
+                  repeatCount="indefinite" keyTimes="0;0.45;0.55;1"
+                  values="156 35; 196 46; 196 46; 156 35" />
+                <path d="M0 0 L0 13 L3.6 9.8 L6.2 15 L8.4 14 L5.9 8.9 L10.4 8.4 Z" />
+              </g>
+            </svg>
+            <div class="demo-caption"><strong>Drag a handle</strong> to bend the curve — the two sides stretch independently</div>
+          </div>
+
+        </div>
+
+        <p>
+          A selected point always shows both of its handles, even when one is pulled
+          right in against the point.
+        </p>
+
+        <h4>Loading and exporting</h4>
+        <p>
+          Drop a <code>.txt</code> profile onto the panel at the top left, or start
+          from the empty profiles. When you're done, pick the file version your
+          machine expects and hit Export.
+        </p>
+      </div>
+      <div class="modal-foot">
+        <button class="modal-primary" data-close-modal>Got it</button>
+      </div>
+    </div>
+
+  </div>
 </body>
 
 </html>

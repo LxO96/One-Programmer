@@ -3,10 +3,14 @@
 body {
   font-family: system-ui, -apple-system, sans-serif;
   background: #fff;
+  /* dvh tracks the shrinking/growing browser chrome on phones; vh does not, which
+     would push the footer below the fold. vh stays first as the fallback. */
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* ── Header ── */
@@ -34,6 +38,189 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
   letter-spacing: 0.02em;
 }
 #bigOutButton:hover { background: #1565c0; }
+
+.header-actions { display: flex; align-items: center; gap: 10px; }
+
+.icon-button {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.icon-button:hover { background: #f2f2f2; border-color: #ccc; color: #333; }
+
+/* ── Modals ── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 30, 48, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+}
+.modal-backdrop[hidden] { display: none; }
+
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(20, 30, 48, 0.22);
+  width: 100%;
+  max-width: 460px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal[hidden] { display: none; }
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+.modal-head h3 { font-size: 15px; font-weight: 700; color: #222; }
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: #bbb;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.modal-close:hover { color: #666; }
+
+.modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #555;
+}
+.modal-body p { margin-bottom: 12px; }
+.modal-body p:last-child { margin-bottom: 0; }
+.modal-body h4 {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #bbb;
+  margin: 18px 0 6px;
+}
+.modal-body strong { color: #333; font-weight: 600; }
+.modal-body code {
+  background: #f2f4f7;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 12px;
+}
+.modal-body a { color: #1976d2; }
+
+/* ── Intro demos ── */
+/* Looping SVG animations in the welcome modal. The motion is SMIL rather than CSS
+   because the curve morphs are `d` animations, which CSS can't drive in Firefox.
+   Reduced-motion is honoured in JS via pauseAnimations(), which CSS can't reach. */
+.demo-list { margin: 10px 0 4px; }
+.demo {
+  background: #f7f9fc;
+  border: 1px solid #e6edf5;
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+  margin-bottom: 10px;
+}
+.demo svg { display: block; width: 100%; height: auto; }
+.demo-caption {
+  font-size: 11px;
+  color: #8a97a8;
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+.demo-caption strong { color: #5b6a7d; font-weight: 700; }
+
+.demo-axis { stroke: #dbe3ee; stroke-width: 1.5; fill: none; }
+.demo-curve { stroke: #3777FF; stroke-width: 2.5; fill: none; stroke-linecap: round; }
+.demo-point { fill: #fff; stroke: #3777FF; stroke-width: 2.5; }
+.demo-point-on { fill: #3777FF; stroke: #3777FF; stroke-width: 2.5; }
+.demo-tangent { stroke: #a9bdd4; stroke-width: 1.5; fill: none; stroke-dasharray: 4 3; }
+.demo-handle { fill: #fff; stroke: #3777FF; stroke-width: 2; }
+.demo-cursor { fill: #46536b; stroke: #fff; stroke-width: 1.2; }
+.demo-ripple { fill: none; stroke: #3777FF; stroke-width: 2; }
+
+.setting-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.setting-help { font-size: 11px; color: #999; line-height: 1.5; }
+
+.modal-foot {
+  padding: 12px 20px 16px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.modal-primary {
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.modal-primary:hover { background: #1565c0; }
+
+.modal-narrow { max-width: 400px; }
+
+.modal-foot { gap: 8px; }
+.modal-secondary {
+  background: #fff;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.modal-secondary:hover { background: #f4f4f4; }
+
+.modal-danger {
+  background: #d32f2f;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.modal-danger:hover { background: #b71c1c; }
+
+/* Destructive footer actions — outlined rather than filled, so they read as
+   available without competing with Export for attention. */
+.danger-btn {
+  background: #fff;
+  border: 1px solid #e6cfcf;
+  border-radius: 5px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: #b3413f;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.danger-btn:hover { background: #fdf3f3; border-color: #d99a9a; color: #96302f; }
 
 /* ── App shell ── */
 #app {
@@ -93,7 +280,7 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
 /* Profile list */
 #profile-list-section {
   padding: 16px;
-  border-bottom: 1px solid #eee;
+  flex: 1;
 }
 #profile-list { display: flex; flex-direction: column; gap: 2px; }
 
@@ -113,14 +300,6 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
 .profile-vol { font-size: 11px; color: #aaa; }
 
 /* Mini overview chart */
-#graphbox {
-  padding: 16px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-#graphbox canvas { width: 100% !important; height: auto !important; }
-
 /* ── Right panel ── */
 #right-panel {
   flex: 1;
@@ -185,18 +364,27 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
   height: 100%;
   cursor: crosshair;
   display: block;
+  /* Without this a touch drag scrolls the page and the browser fires pointercancel,
+     killing the drag mid-gesture. It also suppresses double-tap-to-zoom, which is
+     what lets the double-tap-to-remove gesture through. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .canvas-hint {
   position: absolute;
-  top: 10px;
+  bottom: 10px;
   right: 14px;
   font-size: 10px;
   color: #c8d4e4;
   pointer-events: none;
   letter-spacing: 0.03em;
 }
+/* Readout for the vertical cursor. `top` is fixed — it tracks the cursor's volume
+   but stays pinned to the graph, so it never covers the curve under the pointer. */
 .canvas-tooltip {
   position: absolute;
+  top: 10px;
   background: rgba(20, 30, 48, 0.88);
   color: #fff;
   font-size: 12px;
@@ -225,6 +413,8 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
   flex-shrink: 0;
 }
 .control-group { display: flex; align-items: center; gap: 8px; }
+/* Pushes the destructive actions to the far end, away from the version toggle. */
+.control-group-end { margin-left: auto; }
 .control-label {
   font-size: 10px;
   font-weight: 700;
@@ -245,3 +435,88 @@ header h2 { font-size: 16px; font-weight: 700; color: #222; }
 .ver-btn:first-child { border-radius: 5px 0 0 5px; }
 .ver-btn:last-child { border-radius: 0 5px 5px 0; border-left: none; }
 .ver-btn.active { background: #1976d2; color: #fff; border-color: #1976d2; }
+
+/* ── Touch input ── */
+/* Sized by input device rather than screen width: a small window on a laptop still
+   wants mouse-sized controls, and a large tablet still wants finger-sized ones. */
+@media (pointer: coarse) {
+  .icon-button { width: 42px; height: 42px; font-size: 17px; }
+  #bigOutButton { padding: 13px 22px; }
+  .ver-btn { padding: 12px 20px; }
+  .button { padding: 13px 20px; }
+  .danger-btn { padding: 12px 16px; }
+  .modal-secondary, .modal-danger { padding: 13px 22px; }
+  .profile-item { padding: 13px 12px; }
+  .field-input { padding: 10px 10px; font-size: 16px; }  /* 16px stops iOS zooming on focus */
+  .limit-row input { width: 18px; height: 18px; }
+  .modal-close { font-size: 18px; padding: 10px 13px; }
+  .modal-primary { padding: 13px 26px; }
+}
+
+/* ── Narrow screens ── */
+@media (max-width: 820px) {
+  /* The two panels stack, and the app area becomes the scroll container so the
+     header stays put. */
+  #app { flex-direction: column; overflow-y: auto; }
+
+  #left-panel {
+    width: 100%;
+    min-width: 0;
+    flex-shrink: 0;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+    overflow: visible;
+  }
+
+  header { padding: 12px 14px; }
+  header h2 { font-size: 15px; }
+
+  #drop-area { padding: 12px 14px; }
+  .drop-zone-inner { padding: 11px; }
+
+  /* Five stacked rows would eat the screen before the graph appeared, so the profile
+     list becomes a single swipeable row of chips. */
+  #profile-list-section { padding: 12px 14px; flex: 0 0 auto; }
+  #profile-list {
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+  #profile-list::-webkit-scrollbar { height: 4px; }
+  #profile-list::-webkit-scrollbar-thumb { background: #d8dde5; border-radius: 2px; }
+  .profile-item {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+  }
+  .profile-item.active { border-color: #1976d2; background: #e3f0fd; }
+  .profile-name { flex: none; }
+
+  #right-panel { overflow: visible; }
+  #editor-header { padding: 12px 14px; gap: 10px; }
+  #canvas-area { padding: 12px 14px 8px; }
+
+  /* Once the page scrolls, flex:1 has no fixed height to divide up, so the graph
+     needs a real one or it collapses. */
+  .editor-canvas-wrap { flex: none; height: 54vh; min-height: 240px; }
+
+  #controls-footer { padding: 10px 14px 16px; }
+
+  .modal-backdrop { padding: 10px; }
+  .modal { max-height: 92vh; }
+  .modal-body { padding: 14px 16px; }
+  .modal-head { padding: 14px 16px 10px; }
+  .modal-foot { padding: 10px 16px 14px; }
+}
+
+@media (max-width: 430px) {
+  .header-sub { display: none; }
+  header h2 { font-size: 14px; }
+  .editor-canvas-wrap { height: 46vh; }
+  .canvas-hint { font-size: 9px; bottom: 6px; right: 8px; }
+  .field-input.name-input { width: 96px; }
+  .field-input.num-input { width: 62px; }
+}
