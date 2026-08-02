@@ -1,12 +1,19 @@
-<img src="assets/logo.svg" width="76" height="76" alt="">
+<p align="center">
+  <img src="assets/logo.svg" width="92" height="92" alt="">
+</p>
 
-# Crem One Programmer
+<h1 align="center">Crem One Programmer</h1>
 
-A pressure profile editor for the [Crem One](https://cremcoffee.com/) espresso machine. It
-reads the machine's profile file, lets you reshape all five profiles by dragging curves
-around, and writes a new file you can load back onto the machine.
+<p align="center">
+  A pressure profile editor for the <a href="https://cremcoffee.com/">Crem One</a> espresso machine.<br>
+  It reads the machine's profile file, lets you reshape all five profiles by dragging<br>
+  curves around, and writes a new file you can load back onto the machine.
+</p>
 
-![The editor, with the CLASSIC profile selected and the other four shown behind it](docs/images/editor.jpg)
+<p align="center">
+  <img src="docs/images/hero.jpg" width="880"
+       alt="The editor with the CLASSIC profile selected, one of its control points and handles showing, and the other four profiles drawn behind it">
+</p>
 
 It's a static page — no build step, no dependencies, no network access. Open it and it works,
 from a web server or straight off your disk.
