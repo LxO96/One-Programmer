@@ -176,6 +176,30 @@ pre-infusion setting.
 
 ---
 
+## Tests
+
+```sh
+node test/run.js            # everything
+node test/run.js ghosts     # just the files whose name matches
+VERBOSE=1 node test/run.js  # show each assertion, not just the counts
+```
+
+Node is the only requirement — there is no framework and nothing to install. Each file
+loads `programmer.js` and `settings.js` into a `vm` context with a stubbed DOM and canvas,
+so the tests drive the code the browser actually runs rather than a copy of it.
+
+The interesting ones are `monotonic` (a curve can never carry two pressures at one volume),
+`fuzz` (20,000 randomised drag sequences checking the same), `roundtrip` (a profile through
+import and back out, and an exported file read back in), and `import` (every malformed file
+shape is refused with a readable message and leaves your loaded profiles untouched).
+
+Worth knowing what they can and cannot tell you: they cover geometry, parsing, export and
+state, and they run against the real source. They do not cover rendering — a stub canvas
+records what was asked of it, not what a human would see — so anything visual still needs a
+look in a browser.
+
+---
+
 ## Caveats
 
 - Profiles are not saved between visits. Closing the tab loses unexported work, so export
