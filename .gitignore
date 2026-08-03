@@ -6,3 +6,6 @@
 # Local working copy, not intended for version control — delete this line if you
 # want it tracked
 programmer copy.js
+
+# Design notes and plans, kept locally rather than published
+docs/superpowers/

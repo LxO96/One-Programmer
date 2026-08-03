@@ -168,11 +168,12 @@ settings in memory for the session rather than failing.
 ## Project layout
 
 ```
-OneProfileProgrammer.html   markup, dialogs and the intro walkthrough
-programmer.js               curve maths, canvas rendering, import and export
-settings.js                 settings store, modals, canvas zone labels
-proggStyle.css              all styling, including the responsive rules
-docs/superpowers/           design notes and plans
+index.html        markup, dialogs and the intro walkthrough
+programmer.js     curve maths, canvas rendering, import and export
+settings.js       settings store, modals, canvas zone labels
+proggStyle.css    all styling, including the responsive rules
+assets/           logo and favicon
+test/             the suite and its runner
 ```
 
 `settings.js` must load before `programmer.js` — the first canvas paint reads the
