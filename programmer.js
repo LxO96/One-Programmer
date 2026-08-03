@@ -538,9 +538,49 @@ function pointerPos(e) {
 		canvas: canvas,
 		px: px, py: py,
 		w: rect.width, h: rect.height,
+		touch: lastPointerType === 'touch',
 		normX: Math.max(0, Math.min(1, px / rect.width)),
 		normY: Math.max(0, Math.min(1, 1 - py / rect.height)),
 	};
+}
+
+// ── Removing a point ──
+//
+// On a mouse this is a double-click and the browser tells us so. On touch it can't be:
+// `dblclick` is only synthesised from a double-tap at the browser's discretion, and
+// suppressing double-tap-to-zoom with touch-action:none is exactly the situation where
+// several mobile browsers stop sending it. So touch gets its own detection from the
+// pointerdown stream, and the dblclick handler stands down when that has just fired.
+
+// Deliberately more generous than the ~300ms browsers use for double-tap-to-zoom. That
+// threshold is tuned to get out of the way of scrolling; this one is a considered action
+// aimed at a small target, and there is nothing else a second tap on an already-selected
+// point could mean, so erring long costs nothing.
+const DOUBLE_TAP_MS = 450;
+const DOUBLE_TAP_SLOP = 26;      // CSS px of finger wobble allowed between the two taps
+
+var lastTap = null;              // { index, time, x, y }
+var lastTouchRemoveAt = -Infinity;
+
+// Removes an anchor by index. Returns false if it declined — the profile is already at
+// its floor of two points, or the index is stale — so a gesture can fall through to
+// its normal behaviour instead of silently doing nothing.
+function removePointAt(idx) {
+	const profile = activeProfiles[activeProfileIndex];
+	if (profile.controlPoints.length <= 2) return false;
+	if (idx < 0 || idx >= profile.controlPoints.length) return false;
+
+	profile.controlPoints.splice(idx, 1);
+	draggingAnchorIndex = -1;
+	draggingHandle = null;
+	hoveredPointIndex = -1;
+	if (activePointIndex === idx) activePointIndex = -1;
+	else if (activePointIndex > idx) activePointIndex--;
+	// Merging two segments into one only ever widens the gap, so this cannot shrink a
+	// handle. It is here so the invariant holds no matter how the points got here.
+	enforceMonotonicHandles(profile);
+	drawCanvas(activeProfileIndex);
+	return true;
 }
 
 function drawCanvas(profileIndex) {
@@ -782,6 +822,25 @@ function startEdit(e) {
 		return Math.hypot(cp.x * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < anchorR;
 	});
 
+	// Second tap on the same anchor, soon enough and close enough: remove it. Only
+	// registered when a tap lands on an existing point, so double-tapping empty space
+	// adds a point and then leaves it alone rather than adding and deleting.
+	if (idx >= 0 && pos.touch) {
+		const now = nowMs();
+		const isSecondTap = lastTap
+			&& lastTap.index === idx
+			&& now - lastTap.time < DOUBLE_TAP_MS
+			&& Math.hypot(lastTap.x - pos.px, lastTap.y - pos.py) < DOUBLE_TAP_SLOP;
+		if (isSecondTap) {
+			lastTap = null;
+			if (removePointAt(idx)) {
+				lastTouchRemoveAt = now;
+				return;
+			}
+		}
+		lastTap = { index: idx, time: now, x: pos.px, y: pos.py };
+	}
+
 	if (idx >= 0) {
 		activePointIndex = idx;
 		draggingAnchorIndex = idx;
@@ -887,6 +946,12 @@ function moveEdit(e) {
 	const pos = pointerPos(e);
 	const profile = activeProfiles[activeProfileIndex];
 
+	// Once the finger has travelled, this was a drag rather than the first of two taps,
+	// so it must not pair up with the next tap into a removal.
+	if (lastTap && Math.hypot(lastTap.x - pos.px, lastTap.y - pos.py) >= DOUBLE_TAP_SLOP) {
+		lastTap = null;
+	}
+
 	if (draggingHandle !== null && activePointIndex >= 0) {
 		dragHandle(profile.controlPoints[activePointIndex], draggingHandle, pos.normX, pos.normY);
 		enforceMonotonicHandles(profile);
@@ -933,23 +998,17 @@ function hoverOut() {
 }
 
 function removePoint(e) {
+	// A touch double-tap has already been dealt with from the pointer stream. Browsers
+	// that then also synthesise a dblclick must not take a second point with it.
+	if (nowMs() - lastTouchRemoveAt < DOUBLE_TAP_MS * 2) return;
+
 	const pos = pointerPos(e);
 	const profile = activeProfiles[activeProfileIndex];
-	if (profile.controlPoints.length <= 2) return;
-
 	const removeR = touchSized(12);
 	const idx = profile.controlPoints.findIndex(function(cp) {
 		return Math.hypot(cp.x * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < removeR;
 	});
-
-	if (idx >= 0) {
-		profile.controlPoints.splice(idx, 1);
-		draggingAnchorIndex = -1;
-		hoveredPointIndex = -1;
-		if (activePointIndex === idx) activePointIndex = -1;
-		else if (activePointIndex > idx) activePointIndex--;
-		drawCanvas(activeProfileIndex);
-	}
+	removePointAt(idx);
 }
 
 

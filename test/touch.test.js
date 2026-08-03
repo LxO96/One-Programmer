@@ -206,5 +206,121 @@ console.log('\n-- the hint matches the input device --');
 		/lastPointerType === 'touch'\s*\n?\s*\?\s*'tap to add/.test(src));
 }
 
+
+console.log('\n-- double-tap removes a point without any dblclick event --');
+{
+	// The bug: removal hung entirely off `dblclick`, which mobile browsers do not
+	// reliably synthesise once touch-action:none suppresses double-tap zoom. These
+	// cases fire pointer events only — no dblclick — which is what a phone really did.
+	const sb = load(true, 800, 400);
+	const P = sb.makePoint;
+	const prof = sb.activeProfiles[0];
+	sb.activeProfileIndex = 0;
+
+	const reset = () => {
+		prof.controlPoints = [P(0, 0.1, 0.05, 0), P(0.5, 0.7, 0.05, 0), P(1, 0.3, 0.05, 0)];
+		sb.activePointIndex = -1;
+		sb.lastTap = null;
+		sb.lastTouchRemoveAt = -Infinity;
+	};
+	// Anchor 1 sits at (400, 120) on an 800x400 canvas.
+	const AX = 400, AY = 120;
+	const tap = (x, y) => {
+		const ev = t => ({ currentTarget: sb.__canvas, clientX: x, clientY: y,
+			pointerId: 1, button: 0, pointerType: 'touch' });
+		sb.startEdit(ev()); sb.endEdit(ev());
+	};
+
+	reset();
+	tap(AX, AY);
+	ok('one tap selects rather than removes',
+		prof.controlPoints.length === 3 && sb.activePointIndex === 1,
+		prof.controlPoints.length + ' points, active ' + sb.activePointIndex);
+
+	tap(AX, AY);
+	ok('a second tap removes it — with no dblclick involved',
+		prof.controlPoints.length === 2, prof.controlPoints.length + ' points');
+
+	// An unhurried but deliberate double-tap still counts. 380ms is past the ~300ms
+	// browsers use for double-tap-to-zoom, which is why that threshold is the wrong one
+	// to borrow for a considered action on a small target.
+	reset();
+	tap(AX, AY);
+	sb.lastTap.time -= 380;
+	tap(AX, AY);
+	ok('an unhurried double-tap still removes', prof.controlPoints.length === 2,
+		prof.controlPoints.length + ' points');
+
+	// A slow second tap is two separate taps, not a double-tap.
+	reset();
+	tap(AX, AY);
+	sb.lastTap.time -= 5000;
+	tap(AX, AY);
+	ok('a slow second tap does not remove', prof.controlPoints.length === 3,
+		prof.controlPoints.length + ' points');
+
+	// Fingers wobble; the second tap does not have to land on the same pixel.
+	reset();
+	tap(AX, AY);
+	tap(AX + 15, AY + 12);
+	ok('a wobbly second tap still removes', prof.controlPoints.length === 2,
+		prof.controlPoints.length + ' points');
+
+	// Two quick taps on *different* anchors are not a double-tap.
+	reset();
+	tap(AX, AY);              // anchor 1
+	tap(800, 280);            // anchor 2, at the right edge
+	ok('quick taps on two different anchors remove neither',
+		prof.controlPoints.length === 3, prof.controlPoints.length + ' points');
+	ok('  and the second one is simply selected', sb.activePointIndex === 2,
+		sb.activePointIndex);
+
+	// Tapping empty space adds a point, so a double-tap there must not then delete it.
+	reset();
+	tap(AX + 60, AY + 60);
+	ok('a tap on empty space adds a point', prof.controlPoints.length === 4,
+		prof.controlPoints.length + ' points');
+	tap(AX + 60, AY + 60);
+	ok('  and tapping it again leaves it alone rather than undoing the add',
+		prof.controlPoints.length === 4, prof.controlPoints.length + ' points');
+
+	// Dragging then tapping must not read as a double-tap.
+	reset();
+	const ev = (x, y) => ({ currentTarget: sb.__canvas, clientX: x, clientY: y,
+		pointerId: 1, button: 0, pointerType: 'touch' });
+	sb.startEdit(ev(AX, AY));
+	sb.moveEdit(ev(AX + 90, AY + 40));
+	sb.endEdit(ev(AX + 90, AY + 40));
+	const movedX = prof.controlPoints[1].x;
+	sb.startEdit(ev(AX + 90, AY + 40));
+	sb.endEdit(ev(AX + 90, AY + 40));
+	ok('drag then tap does not remove', prof.controlPoints.length === 3,
+		prof.controlPoints.length + ' points');
+	ok('  and the drag still moved the point', Math.abs(movedX - 0.5) > 0.05, movedX.toFixed(3));
+
+	// The floor still holds: two points cannot become one.
+	reset();
+	prof.controlPoints = [P(0, 0.1, 0.05, 0), P(1, 0.3, 0.05, 0)];
+	tap(0, 360); tap(0, 360);
+	ok('double-tapping cannot go below two points', prof.controlPoints.length === 2,
+		prof.controlPoints.length + ' points');
+
+	// If a browser sends BOTH our tap pair and a synthesised dblclick, only one goes.
+	reset();
+	tap(AX, AY); tap(AX, AY);
+	ok('the tap pair removed one', prof.controlPoints.length === 2);
+	sb.removePoint({ currentTarget: sb.__canvas, clientX: AX, clientY: AY });
+	ok('  and a trailing dblclick is ignored', prof.controlPoints.length === 2,
+		prof.controlPoints.length + ' points');
+
+	// Mouse users keep native double-click, which respects the OS speed setting.
+	reset();
+	sb.lastPointerType = 'mouse';
+	sb.removePoint({ currentTarget: sb.__canvas, clientX: AX, clientY: AY });
+	ok('mouse double-click still removes', prof.controlPoints.length === 2,
+		prof.controlPoints.length + ' points');
+}
+
+
 console.log(fail === 0 ? '\nall checks passed' : '\n' + fail + ' check(s) failed');
 process.exit(fail ? 1 : 0);
