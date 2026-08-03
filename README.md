@@ -5,7 +5,7 @@
 <h1 align="center">Crem One Programmer</h1>
 
 <p align="center">
-  A pressure profile editor for the <a href="https://cremcoffee.com/">Crem One</a> espresso machine.<br>
+  A pressure profile editor for the <a href="https://www.crem.coffee/one">Crem One</a> espresso machine.<br>
   It reads the machine's profile file, lets you reshape all five profiles by dragging<br>
   curves around, and writes a new file you can load back onto the machine.
 </p>
