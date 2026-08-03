@@ -276,7 +276,7 @@ console.log('\n-- clear all asks separately --');
 
 console.log('\n-- the markup carries the controls --');
 {
-	const html = fs.readFileSync(path.join(DIR, 'OneProfileProgrammer.html'), 'utf8');
+	const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
 	const css = fs.readFileSync(path.join(DIR, 'proggStyle.css'), 'utf8');
 	ok('clear buttons present', /id="clearButton"/.test(html) && /id="clearAllButton"/.test(html));
 	ok('confirm dialog present', /id="confirm-modal"/.test(html));

@@ -84,7 +84,7 @@ function seed() {
 console.log('-- the Chart.js overview is gone --');
 {
 	const src = fs.readFileSync(path.join(DIR, 'programmer.js'), 'utf8');
-	const html = fs.readFileSync(path.join(DIR, 'OneProfileProgrammer.html'), 'utf8');
+	const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
 	const css = fs.readFileSync(path.join(DIR, 'proggStyle.css'), 'utf8');
 	ok('no Chart.js references left in the script', !/graphIt|myChart|hasGraphed|labelarray|new Chart/.test(src));
 	ok('no overview markup left', !/graphbox|myChart|Overview/i.test(html));

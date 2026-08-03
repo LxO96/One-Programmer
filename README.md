@@ -22,19 +22,23 @@ from a web server or straight off your disk.
 
 ## Getting started
 
-Clone or download the repository and open `OneProfileProgrammer.html` in a browser.
+**[Open the editor →](https://lxo96.github.io/One-Programmer/)**
+
+Or run it from your own machine — clone the repository and open `index.html`:
 
 ```sh
 git clone https://github.com/LxO96/One-Programmer.git
 cd One-Programmer
-start OneProfileProgrammer.html      # Windows
-open  OneProfileProgrammer.html      # macOS
+start index.html      # Windows
+open  index.html      # macOS
 ```
 
 There is nothing to install and nothing to build. A first-run walkthrough explains the
 editor; you can bring it back later from **⚙ → Show the intro again**.
 
-Everything runs locally. Your profiles are never uploaded anywhere.
+Either way, everything runs in your browser. The hosted copy is the same static files
+served from GitHub Pages — there is no backend, and your profiles are never uploaded
+anywhere.
 
 ---
 
@@ -197,6 +201,32 @@ Worth knowing what they can and cannot tell you: they cover geometry, parsing, e
 state, and they run against the real source. They do not cover rendering — a stub canvas
 records what was asked of it, not what a human would see — so anything visual still needs a
 look in a browser.
+
+---
+
+## Hosting
+
+The repository is laid out to be served as-is by GitHub Pages. To switch it on:
+
+**Settings → Pages → Build and deployment → Source: _Deploy from a branch_ → Branch: `main`, folder `/ (root)` → Save.**
+
+The first build takes a minute or two, after which the site is at
+`https://<user>.github.io/One-Programmer/`. Every push to `main` republishes it.
+
+Two details make this work, both easy to undo by accident:
+
+- **`index.html`** is the entry point. Pages serves `index.html` for a directory URL, so
+  renaming it means the site URL 404s.
+- **`.nojekyll`** turns off Jekyll. Without it Pages runs the repository through Jekyll,
+  which silently drops files and directories whose names begin with an underscore.
+
+Every asset reference is relative, so the site works from the `/One-Programmer/` subpath a
+project site uses, and equally from a user site, a custom domain, or a file on disk. The
+only absolute URL in the project is `og:image` in the page head, used for link previews —
+update that if the repository or account is ever renamed.
+
+No workflow file is needed. Deploying from a branch suits a static site with no build step;
+a GitHub Actions workflow would only add a moving part.
 
 ---
 
