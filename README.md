@@ -242,5 +242,5 @@ a GitHub Actions workflow would only add a moving part.
 
 ## Licence
 
-No licence has been chosen yet, which means default copyright applies. If you want others to
-be able to use or modify this, add one.
+[MIT](LICENSE) — use it, change it, ship it, sell it. Keep the copyright notice, and accept
+that it comes with no warranty.
