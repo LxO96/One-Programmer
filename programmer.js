@@ -1167,51 +1167,78 @@ const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 // undefined names. Nothing here touches the editor's state, so a file that fails to
 // parse leaves the profiles you already had exactly as they were.
 function parseProfileFile(text) {
-	const lines = text.replaceAll('\n', '').split('\r');
-	// Same heuristic the exporter's two formats imply: v1 is 60 steps, v2 is 240.
-	const version = lines.length < 400 ? 1 : 2;
-	const stride = version < 2 ? 66 : 246;
+	// Every line ending is treated the same. The machine terminates lines with CR and
+	// the exporter follows suit, but a file that has been through an editor, a transfer
+	// or a sync often comes back with those rewritten — and a file this editor wrote has
+	// to be readable by it whatever happened to it in between.
+	const lines = text.replace(/\r\n?/g, '\n').split('\n').map(function(l) { return l.trim(); });
 
-	// The final block's trailing blank line may be missing, hence the -1.
-	if (lines.length < stride * 5 - 1) {
-		return { ok: false, error: 'Too short to hold five profiles — expected about '
-			+ (stride * 5) + ' lines, found ' + lines.length + '.' };
+	// Blocks are located by their marker rather than by a fixed number of lines each.
+	// Counting was the original approach and it could not survive the format's own
+	// variation: a profile occupies 246 lines when the blank line between blocks
+	// survives and 245 when it does not, so any fixed stride is wrong for half the
+	// files that exist, including ones this editor produced.
+	const starts = [];
+	for (let i = 0; i < lines.length; i++) {
+		if (/^TYPE:\s*P$/i.test(lines[i])) starts.push(i);
+	}
+
+	if (starts.length === 0) {
+		return { ok: false, error: 'No profiles found in that file. '
+			+ 'Is it a Crem One profile export?' };
+	}
+	if (starts.length < 5) {
+		return { ok: false, error: 'Found ' + starts.length + ' profile'
+			+ (starts.length === 1 ? '' : 's') + ', expected 5.' };
 	}
 
 	const profiles = [];
 	for (let i = 0; i < 5; i++) {
-		const base = i * stride;
-		const nameLine = lines[2 + base] || '';
-		const volLine = lines[3 + base] || '';
-		const timeLine = lines[4 + base] || '';
+		const block = lines.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : lines.length);
+		const field = function(prefix) {
+			const line = block.find(function(l) { return l.slice(0, prefix.length).toUpperCase() === prefix; });
+			return line === undefined ? null : line.slice(prefix.length).trim();
+		};
 
-		if (!/^NAME:/.test(nameLine) || !/^ML:/.test(volLine)) {
-			return { ok: false, error: 'Profile ' + (i + 1) + ' is not laid out as expected. '
-				+ 'Is this a Crem One profile export?' };
+		const name = field('NAME:');
+		const ml = field('ML:');
+		if (name === null || ml === null) {
+			return { ok: false, error: 'Profile ' + (i + 1) + ' is missing its '
+				+ (name === null ? 'NAME' : 'ML') + ' line.' };
 		}
 
-		const volume = parseInt(volLine.substring(3), 10);
-		const time = parseInt(timeLine.substring(5), 10);
-
+		// A pressure line is an index, a colon and a value. Matching the shape rather
+		// than the position means indented, padded and unpadded files all read the same.
 		const pressures = [];
-		for (let l = 5; l < stride - 1; l++) {
-			const raw = lines[l + base];
-			const v = parseFloat((raw || '').substring(4));
+		for (const line of block) {
+			const m = /^(\d+)\s*:\s*(.*)$/.exec(line);
+			if (!m) continue;
+			const v = parseFloat(m[2]);
 			if (!isFinite(v)) {
-				return { ok: false, error: 'Profile ' + (i + 1) + ' has an unreadable pressure '
-					+ 'on line ' + (l + base + 1) + '.' };
+				return { ok: false, error: 'Profile ' + (i + 1) + ' has an unreadable '
+					+ 'pressure value: "' + line + '".' };
 			}
 			pressures.push(Math.max(0, Math.min(10, v)));
 		}
 
+		if (pressures.length < 2) {
+			return { ok: false, error: 'Profile ' + (i + 1) + ' has no pressure values.' };
+		}
+
+		const volume = parseInt(ml, 10);
+		const time = parseInt(field('TIME:') || '', 10);
 		profiles.push({
-			name: nameLine.substring(5).trim(),
+			name: name,
 			volume: isFinite(volume) ? Math.max(4, Math.min(240, volume)) : 240,
 			time: isFinite(time) ? time : 0,
 			volLim: 0,
 			pressureArray: pressures,
 		});
 	}
+
+	// The version is a property of the resolution, not of the file's length: v1 stores
+	// 60 steps of 4ml, v2 stores 240 of 1ml.
+	const version = profiles[0].pressureArray.length > 120 ? 2 : 1;
 	return { ok: true, version: version, profiles: profiles };
 }
 
