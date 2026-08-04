@@ -60,7 +60,7 @@ function presetProfile(preset) {
 		volume: vol,
 		time: 0,
 		volLim: 0,
-		pressureArray: Array(240).fill("0.0"),
+		pressureArray: Array(240).fill(0),
 		controlPoints: pts.map(function(p, i, arr) {
 			const h = catmullRomHandles(arr, i);
 			return makePoint(p.x, p.y, h.cpx, h.cpy);
@@ -183,10 +183,12 @@ function deriveArray(profileIndex) {
 	const vol = Math.ceil(parseInt(profile.volume));
 	const pts = [...profile.controlPoints].sort((a, b) => a.x - b.x);
 	for (let i = 0; i < 240; i++) {
-		if (i >= vol) { profile.pressureArray[i] = "0.0"; continue; }
+		if (i >= vol) { profile.pressureArray[i] = 0; continue; }
 		const t = vol === 1 ? 0 : i / (vol - 1);
 		const y = sampleCurveAtX(pts, t);
-		profile.pressureArray[i] = String(Math.max(0, Math.min(10, Math.round(y * 100) / 10)));
+		// Stored as a number. Keeping these as strings is what let a stray `+`
+		// concatenate two of them during resampling.
+		profile.pressureArray[i] = Math.max(0, Math.min(10, Math.round(y * 100) / 10));
 	}
 }
 
@@ -1018,7 +1020,7 @@ function removePoint(e) {
 function clearProfile(profileIndex) {
 	const profile = activeProfiles[profileIndex];
 	profile.controlPoints = [makePoint(0, 0, 0.15, 0), makePoint(1, 0, 0, 0)];
-	profile.pressureArray = Array(240).fill("0.0");
+	profile.pressureArray = Array(240).fill(0);
 	if (profileIndex === activeProfileIndex) {
 		activePointIndex = -1;
 		draggingAnchorIndex = -1;
@@ -1301,34 +1303,50 @@ function handleFiles(fileList) {
 	reader.readAsText(file);
 }
 
+// Returns fresh profile objects and leaves the originals untouched. This used to
+// resample in place, so writing a v1 file replaced the editor's 240-sample arrays with
+// 60 resampled ones — exporting quietly threw away resolution you still had on screen.
 function interpolateProfile(originalProfiles, wantedLenght) {
-	for (o = 0; o < 5; o++) {
-		const profile = originalProfiles[o].pressureArray;
-		newProfile = interpolateArray(profile, wantedLenght);
-		originalProfiles[o].pressureArray = newProfile;
-	}
-	return originalProfiles;
+	return originalProfiles.map(function(p) {
+		return Object.assign({}, p, {
+			pressureArray: interpolateArray(p.pressureArray, wantedLenght),
+		});
+	});
+}
+
+// Pressure in bar, as a number. Values reach here as strings often enough that this
+// has to be explicit, and anything unreadable becomes 0 rather than travelling to the
+// machine as NaN.
+function toBar(v) {
+	const n = Number(v);
+	return isFinite(n) ? Math.max(0, Math.min(10, n)) : 0;
 }
 
 function interpolateArray(originalArray, targetLength) {
 	const originalLength = originalArray.length;
+	if (targetLength <= 0) return [];
+	if (originalLength === 0) return Array(targetLength).fill(0);
+	if (originalLength === 1 || targetLength === 1) {
+		return Array(targetLength).fill(toBar(originalArray[0]));
+	}
+
 	const ratio = (originalLength - 1) / (targetLength - 1);
 	const interpolatedArray = [];
 
 	for (let i = 0; i < targetLength; i++) {
 		const index = i * ratio;
 		const lowerIndex = Math.floor(index);
-		const upperIndex = Math.ceil(index);
+		// Rounding can push the last index a hair past the end.
+		const upperIndex = Math.min(originalLength - 1, Math.ceil(index));
 
-		if (lowerIndex === upperIndex) {
-			interpolatedArray.push(originalArray[lowerIndex]);
-		} else {
-			const lowerValue = originalArray[lowerIndex];
-			const upperValue = originalArray[upperIndex];
-			const fraction = index - lowerIndex;
-			const interpolatedValue = lowerValue + fraction * (upperValue - lowerValue);
-			interpolatedArray.push(interpolatedValue);
-		}
+		// Both ends are converted before any arithmetic. They were not, and `+` on a
+		// string concatenates: a whole-number reading stringifies as "9", so "9" + 0
+		// produced "90", which the exporter then wrote out as 90 bar. Only whole
+		// numbers stringify without a decimal point, which is why it looked random.
+		const lowerValue = toBar(originalArray[lowerIndex]);
+		const upperValue = toBar(originalArray[upperIndex]);
+		const fraction = index - lowerIndex;
+		interpolatedArray.push(lowerValue + fraction * (upperValue - lowerValue));
 	}
 
 	return interpolatedArray;

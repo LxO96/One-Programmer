@@ -75,6 +75,56 @@ roundTrip('at the floor', () => 0);
 // A file written by the exporter must read back as the same thing.
 console.log('');
 {
+	// Every value the machine is ever handed must be a plausible pressure. This caught a
+	// real defect: pressures were stored as strings, and resampling did
+	// `lower + fraction * (upper - lower)`, where `+` on a string concatenates. A whole
+	// number stringifies without a decimal point, so "9" + 0 became "90" — exported as
+	// 90 bar. Only whole-number readings hit it, so it looked intermittent.
+	const scan = version => {
+		for (let i = 0; i < 5; i++) sb.deriveArray(i);
+		const txt = sb.getTextFile(version);
+		const values = [];
+		for (const line of txt.split('\r')) {
+			const m = /^\s*(\d+)\s*:\s*(-?[\d.]+)\s*$/.exec(line);
+			if (m) values.push({ step: +m[1], bar: parseFloat(m[2]), line: line.trim() });
+		}
+		return values;
+	};
+
+	for (const version of [1, 2]) {
+		const values = scan(version);
+		const expected = version === 1 ? 60 : 240;
+		ok('v' + version + ': writes ' + expected + ' steps per profile',
+			values.length === expected * 5, values.length + ' values');
+		const bad = values.filter(v => !(v.bar >= 0 && v.bar <= 10));
+		ok('  every exported pressure is between 0 and 10 bar', bad.length === 0,
+			bad.length ? bad.slice(0, 4).map(b => b.line).join('  ') : 'all in range');
+		ok('  none are NaN', values.every(v => isFinite(v.bar)));
+	}
+
+	// Exporting must not alter what is on screen. Resampling used to write its result
+	// straight back into activeProfiles, so writing a v1 file replaced the editor's
+	// 240-sample arrays with 60.
+	for (let i = 0; i < 5; i++) sb.deriveArray(i);
+	const lengthsBefore = sb.activeProfiles.map(p => p.pressureArray.length).join(',');
+	const firstBefore = sb.activeProfiles.map(p => p.pressureArray[10]).join(',');
+	sb.getTextFile(1);
+	ok('a v1 export leaves the in-memory arrays at full resolution',
+		sb.activeProfiles.map(p => p.pressureArray.length).join(',') === lengthsBefore,
+		sb.activeProfiles.map(p => p.pressureArray.length).join(','));
+	ok('  and does not alter their values',
+		sb.activeProfiles.map(p => p.pressureArray[10]).join(',') === firstBefore);
+
+	// Exporting the same profiles twice must give the same file.
+	for (let i = 0; i < 5; i++) sb.deriveArray(i);
+	const once = sb.getTextFile(1);
+	const twice = sb.getTextFile(1);
+	ok('exporting twice gives an identical file', once === twice);
+}
+
+
+console.log('');
+{
 	for (let i = 0; i < 5; i++) sb.deriveArray(i);
 	const written = sb.getTextFile(2);
 	const reread = sb.parseProfileFile(written);
