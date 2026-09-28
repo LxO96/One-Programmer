@@ -76,12 +76,12 @@ sb.activeProfiles[0].volume = 240;
 let r = render();
 ok('both zone labels drawn by default',
 	r.labels.includes('PRE-INFUSION') && r.labels.includes('EXTRACTION'), r.labels.join(','));
-ok('zone width matches the default over the profile volume',
-	Math.abs(r.zone.w - 1200 * D / 240) < 0.5, r.zone.w);
+// The axis gives pre-infusion a fixed third of the width, whatever its millilitres.
+ok('zone takes a third of the width', Math.abs(r.zone.w - 1200 / 3) < 0.5, r.zone.w);
 
 sb.setPreInfusionMl(160);
 r = render();
-ok('zone widens with the setting', Math.abs(r.zone.w - 1200 * 160 / 240) < 0.5, r.zone.w);
+ok('zone keeps its third as the setting grows', Math.abs(r.zone.w - 1200 / 3) < 0.5, r.zone.w);
 ok('setting persisted', store.get('cremOne.settings') === '{"preInfusionMl":160}', store.get('cremOne.settings'));
 
 sb.setPreInfusionMl(0);

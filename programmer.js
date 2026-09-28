@@ -376,7 +376,10 @@ function minHandleDrawPx() { return lastPointerType === 'touch' ? 46 : 26; }
 // Pixel offset of one handle knob from its anchor. Both handles share a tangent
 // direction, so either can supply it; a point with no tangent at all falls back to
 // the volume axis so it still shows two grabbable knobs.
-function handleOffsetPx(cp, which, w, h) {
+function handleOffsetPx(cp, which, w, h, split) {
+	// The axis is stretched differently either side of the pre-infusion split, so the
+	// handle is measured against the width per unit on its own side of the anchor.
+	w *= axisSlope(cp.x, split, which);
 	let tx = cp.cpxOut, ty = cp.cpyOut;
 	if (tx === 0 && ty === 0) { tx = cp.cpxIn; ty = cp.cpyIn; }
 
@@ -508,20 +511,104 @@ function stepProfileSwitch() {
 	requestAnimationFrame(stepProfileSwitch);
 }
 
+// ── The volume axis ──
+//
+// Pre-infusion is long in millilitres but little happens in it, so a linear axis gave
+// it far more of the graph than it deserves. The axis is instead two linear pieces:
+// pre-infusion always gets the first third of the width, extraction the other two.
+// Curves are still stored and exported in plain millilitres; only the drawing and the
+// pointer mapping pass through this.
+const PRE_INFUSION_SHARE = 1 / 3;
+
+// Normalized volume at which pre-infusion ends on an axis of `vol` millilitres. A
+// value of 0 or 1 means there is only one zone, and the axis is left linear.
+function preInfusionSplit(vol) {
+	if (!(vol > 1)) return 0;
+	return Math.max(0, Math.min(1, getPreInfusionMl() / (vol - 1)));
+}
+
+function axisSplit(profileIndex) { return preInfusionSplit(axisVolume(profileIndex)); }
+
+function isSplitAxis(split) { return split > 0 && split < 1; }
+
+// Normalized volume -> fraction of the canvas width. Values past 1 (a longer ghost
+// profile) carry on along the extraction piece rather than being clamped.
+function axisToScreen(x, split) {
+	if (!isSplitAxis(split)) return x;
+	if (x < split) return (x / split) * PRE_INFUSION_SHARE;
+	return PRE_INFUSION_SHARE + ((x - split) / (1 - split)) * (1 - PRE_INFUSION_SHARE);
+}
+
+function screenToAxis(s, split) {
+	if (!isSplitAxis(split)) return s;
+	if (s < PRE_INFUSION_SHARE) return (s / PRE_INFUSION_SHARE) * split;
+	return split + ((s - PRE_INFUSION_SHARE) / (1 - PRE_INFUSION_SHARE)) * (1 - split);
+}
+
+// Screen width per unit of normalized volume at x. At the split itself the axis has a
+// kink, so the side is chosen by which way the caller is looking: an out-handle reads
+// the extraction side, an in-handle the pre-infusion side.
+function axisSlope(x, split, side) {
+	if (!isSplitAxis(split)) return 1;
+	const left = side === 'in' ? x <= split : x < split;
+	return left ? PRE_INFUSION_SHARE / split : (1 - PRE_INFUSION_SHARE) / (1 - split);
+}
+
+// Splits the cubic p0..p3 at t by de Casteljau, returning the two halves.
+function splitCubic(p0, p1, p2, p3, t) {
+	const lerp = (a, b) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+	const a = lerp(p0, p1), b = lerp(p1, p2), c = lerp(p2, p3);
+	const d = lerp(a, b), e = lerp(b, c), m = lerp(d, e);
+	return [[p0, a, d, m], [m, e, c, p3]];
+}
+
 // Traces one profile's curve into the current path. `k` maps that profile's own
 // normalized volume onto the canvas x-axis, which belongs to the profile being
 // edited — k is 1 for that one, and the ratio of volumes for a background profile.
-function traceProfile(ctx, points, w, h, k) {
+// The axis is linear either side of the split, so a segment that stays on one side
+// maps exactly as a bezier; one that crosses it is cut at the split first.
+function traceProfile(ctx, points, w, h, k, split) {
 	const pts = [...points].sort((a, b) => a.x - b.x);
 	if (pts.length < 2) return false;
-	ctx.moveTo(pts[0].x * k * w, (1 - pts[0].y) * h);
+	const sx = function(x, side) {
+		// Every control point of a piece is mapped with that piece's own side, so a
+		// handle reaching over the split still bends the curve as it would on a line.
+		if (!isSplitAxis(split)) return x * w;
+		const s = side === 'pre'
+			? (x / split) * PRE_INFUSION_SHARE
+			: PRE_INFUSION_SHARE + ((x - split) / (1 - split)) * (1 - PRE_INFUSION_SHARE);
+		return s * w;
+	};
+	const emit = function(c, side) {
+		ctx.bezierCurveTo(
+			sx(c[1].x, side), (1 - c[1].y) * h,
+			sx(c[2].x, side), (1 - c[2].y) * h,
+			sx(c[3].x, side), (1 - c[3].y) * h
+		);
+	};
+	ctx.moveTo(axisToScreen(pts[0].x * k, split) * w, (1 - pts[0].y) * h);
 	for (let i = 0; i < pts.length - 1; i++) {
 		const p = pts[i], q = pts[i + 1];
-		ctx.bezierCurveTo(
-			(p.x + p.cpxOut) * k * w, (1 - p.y - p.cpyOut) * h,
-			(q.x - q.cpxIn) * k * w,  (1 - q.y + q.cpyIn) * h,
-			q.x * k * w, (1 - q.y) * h
-		);
+		const c = [
+			{ x: p.x * k, y: p.y },
+			{ x: (p.x + p.cpxOut) * k, y: p.y + p.cpyOut },
+			{ x: (q.x - q.cpxIn) * k, y: q.y - q.cpyIn },
+			{ x: q.x * k, y: q.y },
+		];
+		if (isSplitAxis(split) && c[0].x < split && c[3].x > split) {
+			// Handles never point backwards in x, so x(t) is monotonic and bisects cleanly.
+			let lo = 0, hi = 1;
+			for (let iter = 0; iter < 30; iter++) {
+				const t = (lo + hi) / 2, mt = 1 - t;
+				const x = mt*mt*mt*c[0].x + 3*mt*mt*t*c[1].x + 3*mt*t*t*c[2].x + t*t*t*c[3].x;
+				if (x < split) lo = t; else hi = t;
+			}
+			const halves = splitCubic(c[0], c[1], c[2], c[3], (lo + hi) / 2);
+			emit(halves[0], 'pre');
+			emit(halves[1], 'post');
+		} else {
+			emit(c, c[3].x <= split ? 'pre' : 'post');
+		}
 	}
 	return true;
 }
@@ -536,12 +623,14 @@ function pointerPos(e) {
 	const rect = canvas.getBoundingClientRect();
 	const px = e.clientX - rect.left;
 	const py = e.clientY - rect.top;
+	const split = axisSplit(activeProfileIndex);
 	return {
 		canvas: canvas,
 		px: px, py: py,
 		w: rect.width, h: rect.height,
+		split: split,
 		touch: lastPointerType === 'touch',
-		normX: Math.max(0, Math.min(1, px / rect.width)),
+		normX: Math.max(0, Math.min(1, screenToAxis(px / rect.width, split))),
 		normY: Math.max(0, Math.min(1, 1 - py / rect.height)),
 	};
 }
@@ -610,8 +699,11 @@ function drawCanvas(profileIndex) {
 
 	ctx.clearRect(0, 0, w, h);
 
-	// Pre-infusion zone — length is a global setting, purely a drawing guide
-	const preW = Math.min(w, (getPreInfusionMl() / vol) * w);
+	// Pre-infusion zone — length is a global setting, purely a drawing guide. The axis
+	// gives it a fixed share of the width whatever its length in millilitres.
+	const split = preInfusionSplit(vol);
+	const sx = function(x) { return axisToScreen(x, split) * w; };
+	const preW = split >= 1 ? w : split > 0 ? PRE_INFUSION_SHARE * w : 0;
 	ctx.fillStyle = 'rgba(55, 119, 255, 0.05)';
 	ctx.fillRect(0, 0, preW, h);
 
@@ -633,7 +725,7 @@ function drawCanvas(profileIndex) {
 
 	// Vertical grid lines (every 24ml)
 	for (let ml = 24; ml < vol; ml += 24) {
-		const x = (ml / (vol - 1)) * w;
+		const x = sx(ml / (vol - 1));
 		ctx.strokeStyle = '#eaeff5';
 		ctx.lineWidth = 1;
 		ctx.beginPath();
@@ -669,7 +761,7 @@ function drawCanvas(profileIndex) {
 			// The fill belongs to the profile being edited, so it fades in with it.
 			const rgb = hexToRgb(PROFILE_COLORS[i]);
 			ctx.beginPath();
-			if (traceProfile(ctx, other.controlPoints, w, h, k)) {
+			if (traceProfile(ctx, other.controlPoints, w, h, k, split)) {
 				ctx.lineTo(w, h);
 				ctx.lineTo(0, h);
 				ctx.closePath();
@@ -682,7 +774,7 @@ function drawCanvas(profileIndex) {
 		ctx.strokeStyle = curveColor(PROFILE_COLORS[i], emphasis);
 		ctx.lineWidth = 1.5 + emphasis;
 		ctx.beginPath();
-		if (traceProfile(ctx, other.controlPoints, w, h, k)) ctx.stroke();
+		if (traceProfile(ctx, other.controlPoints, w, h, k, split)) ctx.stroke();
 	}
 	ctx.restore();
 
@@ -693,7 +785,7 @@ function drawCanvas(profileIndex) {
 	// Vertical cursor at the pointer, with a dot where it crosses the curve. The
 	// numeric readout is the tooltip element, pinned to the top of the graph.
 	if (crosshairX >= 0) {
-		const chx = crosshairX * w;
+		const chx = sx(crosshairX);
 		const chy = (1 - sampleCurveAtX(pts, crosshairX)) * h;
 		ctx.save();
 		ctx.strokeStyle = 'rgba(20,30,48,0.3)';
@@ -717,9 +809,9 @@ function drawCanvas(profileIndex) {
 	// Draw bezier handles for active point
 	if (activePointIndex >= 0 && activePointIndex < profile.controlPoints.length) {
 		const cp = profile.controlPoints[activePointIndex];
-		const ax = cp.x * w, ay = (1 - cp.y) * h;
-		const outO = handleOffsetPx(cp, 'out', w, h);
-		const inO  = handleOffsetPx(cp, 'in', w, h);
+		const ax = sx(cp.x), ay = (1 - cp.y) * h;
+		const outO = handleOffsetPx(cp, 'out', w, h, split);
+		const inO  = handleOffsetPx(cp, 'in', w, h, split);
 		const outHx = ax + outO.dx, outHy = ay + outO.dy;
 		const inHx  = ax + inO.dx,  inHy  = ay + inO.dy;
 
@@ -751,7 +843,7 @@ function drawCanvas(profileIndex) {
 	// touched is labelled and the rest are read off the vertical cursor instead.
 	const labelAll = w >= 520 || profile.controlPoints.length <= 3;
 	profile.controlPoints.forEach(function(cp, i) {
-		const cx = cp.x * w;
+		const cx = sx(cp.x);
 		const cy = (1 - cp.y) * h;
 		const active = i === activePointIndex || i === hoveredPointIndex;
 		const radius = active ? 12 : 8;
@@ -805,10 +897,10 @@ function startEdit(e) {
 	// drawn — a handle clamped to near-zero length still shows a knob further out.
 	if (activePointIndex >= 0 && activePointIndex < profile.controlPoints.length) {
 		const cp = profile.controlPoints[activePointIndex];
-		const ax = cp.x * pos.w, ay = (1 - cp.y) * pos.h;
+		const ax = axisToScreen(cp.x, pos.split) * pos.w, ay = (1 - cp.y) * pos.h;
 		const hitR = touchSized(12);
 		const hit = ['out', 'in'].find(function(which) {
-			const o = handleOffsetPx(cp, which, pos.w, pos.h);
+			const o = handleOffsetPx(cp, which, pos.w, pos.h, pos.split);
 			return Math.hypot(ax + o.dx - pos.px, ay + o.dy - pos.py) < hitR;
 		});
 		if (hit) {
@@ -821,7 +913,7 @@ function startEdit(e) {
 	// Hit-test anchors
 	const anchorR = touchSized(12);
 	const idx = profile.controlPoints.findIndex(function(cp) {
-		return Math.hypot(cp.x * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < anchorR;
+		return Math.hypot(axisToScreen(cp.x, pos.split) * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < anchorR;
 	});
 
 	// Second tap on the same anchor, soon enough and close enough: remove it. Only
@@ -935,7 +1027,8 @@ function showTooltip(profileIndex, normX, canvasEl) {
 	// Measured after the text is set, so the clamp uses this frame's width.
 	const rect = canvasEl.getBoundingClientRect();
 	const half = tooltip.offsetWidth / 2;
-	const x = Math.max(half + 6, Math.min(rect.width - half - 6, normX * rect.width));
+	const screenX = axisToScreen(normX, axisSplit(profileIndex)) * rect.width;
+	const x = Math.max(half + 6, Math.min(rect.width - half - 6, screenX));
 	tooltip.style.left = x + 'px';
 }
 
@@ -955,7 +1048,13 @@ function moveEdit(e) {
 	}
 
 	if (draggingHandle !== null && activePointIndex >= 0) {
-		dragHandle(profile.controlPoints[activePointIndex], draggingHandle, pos.normX, pos.normY);
+		// A handle is drawn at its anchor's local scale, so the pointer is read back at
+		// that same scale. Mapping it through the whole axis would bend the drag the
+		// moment the knob crossed into the other zone.
+		const cp = profile.controlPoints[activePointIndex];
+		const ax = axisToScreen(cp.x, pos.split) * pos.w;
+		const handleX = cp.x + (pos.px - ax) / (pos.w * axisSlope(cp.x, pos.split, draggingHandle));
+		dragHandle(cp, draggingHandle, handleX, pos.normY);
 		enforceMonotonicHandles(profile);
 	} else if (draggingAnchorIndex >= 0) {
 		const anchor = profile.controlPoints[draggingAnchorIndex];
@@ -965,7 +1064,7 @@ function moveEdit(e) {
 	} else {
 		const hoverR = touchSized(16);
 		hoveredPointIndex = profile.controlPoints.findIndex(function(cp) {
-			return Math.hypot(cp.x * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < hoverR;
+			return Math.hypot(axisToScreen(cp.x, pos.split) * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < hoverR;
 		});
 	}
 
@@ -1008,7 +1107,7 @@ function removePoint(e) {
 	const profile = activeProfiles[activeProfileIndex];
 	const removeR = touchSized(12);
 	const idx = profile.controlPoints.findIndex(function(cp) {
-		return Math.hypot(cp.x * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < removeR;
+		return Math.hypot(axisToScreen(cp.x, pos.split) * pos.w - pos.px, (1 - cp.y) * pos.h - pos.py) < removeR;
 	});
 	removePointAt(idx);
 }

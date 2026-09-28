@@ -56,6 +56,11 @@ before the shot proper, which helps avoid channelling. The Crem One pre-infuses 
 first 80ml, which is the default. The rest is **extraction**, where the curve actually
 pulls the shot.
 
+Pre-infusion always takes the first third of the graph and extraction the other two
+thirds, whatever their lengths in millilitres, so the part of the shot you actually shape
+gets most of the room. Each zone is evenly scaled within itself; only the graph is
+squeezed — the curve and the exported pressures are still in plain millilitres.
+
 The four profiles you are *not* editing are drawn behind the active one in muted colour.
 They share the same millilitre axis rather than being stretched to the width of the graph,
 so pressures line up at the same point of the shot — which means a profile longer than the

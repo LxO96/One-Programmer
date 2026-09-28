@@ -52,6 +52,9 @@ function load(coarse, width, height) {
 	vm.runInContext(fs.readFileSync(path.join(DIR, 'settings.js'), 'utf8'), sb);
 	vm.runInContext(fs.readFileSync(path.join(DIR, 'programmer.js'), 'utf8'), sb);
 	sb.loadSettings();
+	// Pixel positions below assume a linear volume axis; the pre-infusion split has
+	// its own checks in axis.test.js.
+	sb.setPreInfusionMl(0);
 	sb.__canvas = canvas;
 	sb.__resetCtx = () => { texts = []; ctx = stubCtx(); };
 	return sb;

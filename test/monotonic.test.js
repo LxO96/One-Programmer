@@ -12,7 +12,8 @@ const sandbox = {
 	window: {},
 	console: { debug() {} },
 	Chart: function() {},
-	getPreInfusionMl: () => 80,
+	// 0 keeps the volume axis linear, which the pixel positions below assume.
+	getPreInfusionMl: () => 0,
 	drawZoneLabel: () => false,
 };
 vm.createContext(sandbox);

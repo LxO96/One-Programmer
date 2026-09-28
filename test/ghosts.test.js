@@ -42,6 +42,9 @@ vm.createContext(sb);
 vm.runInContext(fs.readFileSync(path.join(DIR, 'settings.js'), 'utf8'), sb);
 vm.runInContext(fs.readFileSync(path.join(DIR, 'programmer.js'), 'utf8'), sb);
 sb.loadSettings();
+// Pixel positions below assume a linear volume axis; the pre-infusion split has
+// its own checks in axis.test.js.
+sb.setPreInfusionMl(0);
 
 const P = sb.makePoint;
 let fail = 0;
