@@ -67,13 +67,40 @@ function ok(name, cond, detail) {
 {
 	const { sb, storage } = load();
 	sb.setPreInfusionMl(45);
-	ok('value persisted to storage', storage._map.get('cremOne.settings') === '{"preInfusionMl":45}',
+	ok('value persisted to storage', JSON.parse(storage._map.get('cremOne.settings')).preInfusionMl === 45,
 		storage._map.get('cremOne.settings'));
 
 	const reloaded = load();
 	reloaded.storage._map.set('cremOne.settings', '{"preInfusionMl":45}');
 	reloaded.sb.loadSettings();
 	ok('value survives reload', reloaded.sb.getPreInfusionMl() === 45, reloaded.sb.getPreInfusionMl());
+}
+
+// ── squeezing pre-infusion ──
+{
+	const { sb, storage } = load();
+	sb.loadSettings();
+	ok('pre-infusion is squeezed by default', sb.getSqueezePreInfusion() === true);
+
+	// Settings saved before the option existed carry no field and must keep the default.
+	storage._map.set('cremOne.settings', '{"preInfusionMl":45}');
+	sb.loadSettings();
+	ok('older saved settings keep the squeeze on', sb.getSqueezePreInfusion() === true);
+
+	sb.setSqueezePreInfusion(false);
+	ok('turning it off persists', JSON.parse(storage._map.get('cremOne.settings')).squeezePreInfusion === false,
+		storage._map.get('cremOne.settings'));
+	const reloaded = load();
+	reloaded.storage._map.set('cremOne.settings', storage._map.get('cremOne.settings'));
+	reloaded.sb.loadSettings();
+	ok('  and survives reload', reloaded.sb.getSqueezePreInfusion() === false);
+	ok('  without touching the pre-infusion length', reloaded.sb.getPreInfusionMl() === 45, reloaded.sb.getPreInfusionMl());
+
+	for (const raw of ['{"squeezePreInfusion":"no"}', '{"squeezePreInfusion":0}', 'not json']) {
+		storage._map.set('cremOne.settings', raw);
+		sb.loadSettings();
+		ok('only an explicit false turns it off: ' + raw, sb.getSqueezePreInfusion() === true);
+	}
 }
 
 // ── corrupt / hostile stored values ──

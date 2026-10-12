@@ -1,5 +1,6 @@
 // The volume axis is split in two: pre-infusion always gets the first third of the
-// width and extraction the rest, however many millilitres each covers. Curves are
+// width and extraction the rest, however many millilitres each covers, with the scale
+// easing from one to the other rather than kinking at the border. Curves are
 // still stored in plain millilitres, so drawing, hit-testing and the cursor must all
 // go through the same mapping or they drift apart.
 const fs = require('fs'), vm = require('vm'), path = require('path');
@@ -79,18 +80,52 @@ function setup() {
 	];
 }
 
+// Screen x, in pixels, of a normalized volume on the 161ml axis set up above.
+const SPLIT = 0.5;
+const toPx = x => sb.axisToScreen(x, SPLIT) * W;
+
 console.log('-- the mapping --');
 {
-	const split = 0.5;
+	const split = SPLIT;
 	ok('pre-infusion ends a third of the way across', near(sb.axisToScreen(split, split), 1 / 3));
 	ok('  the ends stay put', sb.axisToScreen(0, split) === 0 && near(sb.axisToScreen(1, split), 1));
-	ok('  each side is linear', near(sb.axisToScreen(0.25, split), 1 / 6) && near(sb.axisToScreen(0.75, split), 2 / 3));
+	// Away from the split each zone is evenly scaled: equal steps in, equal steps out.
+	const step = x => sb.axisToScreen(x + 0.05, split) - sb.axisToScreen(x, split);
+	ok('  the start of pre-infusion is evenly scaled', near(step(0), step(0.1)));
+	ok('  the end of extraction is evenly scaled', near(step(0.85), step(0.95)));
+	ok('  and pre-infusion is the more squeezed of the two', step(0) < step(0.9));
+
+	// The point of the easing band: the scale never jumps, it only drifts.
+	let increasing = true, worstJump = 0;
+	for (let i = 1; i <= 1000; i++) {
+		const x = i / 1000;
+		if (!(sb.axisToScreen(x, split) > sb.axisToScreen(x - 0.001, split))) increasing = false;
+		worstJump = Math.max(worstJump, Math.abs(sb.axisSlope(x, split) - sb.axisSlope(x - 0.001, split)));
+	}
+	ok('the axis only moves rightwards', increasing);
+	ok('  and its scale changes gradually, with no kink', worstJump < 0.01, worstJump.toFixed(5));
+	let worstSlope = 0;
+	for (let i = 1; i < 100; i++) {
+		const x = i / 100, e = 1e-6;
+		const numeric = (sb.axisToScreen(x + e, split) - sb.axisToScreen(x - e, split)) / (2 * e);
+		worstSlope = Math.max(worstSlope, Math.abs(numeric - sb.axisSlope(x, split)));
+	}
+	ok('  and the reported scale is the axis\'s real one', worstSlope < 1e-5, worstSlope);
+
 	let worst = 0;
 	for (let i = 0; i <= 100; i++) worst = Math.max(worst, Math.abs(sb.screenToAxis(sb.axisToScreen(i / 100, split), split) - i / 100));
 	ok('screen and axis round-trip', worst < 1e-12, worst);
 	ok('no pre-infusion leaves the axis linear', sb.axisToScreen(0.3, 0) === 0.3 && sb.screenToAxis(0.3, 0) === 0.3);
 	ok('pre-infusion filling the shot leaves it linear', sb.axisToScreen(0.3, 1) === 0.3);
-	ok('a longer ghost carries on past the right edge', near(sb.axisToScreen(1.5, split), 1 + (2 / 3)));
+	ok('a longer ghost carries on past the right edge at the extraction scale',
+		near(sb.axisToScreen(1.5, split), 1 + 0.5 * sb.axisSlope(1, split)));
+
+	// Short and long pre-infusions still put the split on the third, with no fold.
+	for (const s of [0.05, 0.2, 0.8, 0.95]) {
+		let mono = true;
+		for (let i = 1; i <= 200; i++) if (!(sb.axisToScreen(i / 200, s) > sb.axisToScreen((i - 1) / 200, s))) mono = false;
+		ok('split at ' + s + ' lands on the third and never folds back', near(sb.axisToScreen(s, s), 1 / 3) && mono);
+	}
 }
 
 console.log('\n-- drawing --');
@@ -99,59 +134,89 @@ console.log('\n-- drawing --');
 	const active = render();
 	ok('the zone is a third of the width', near(rects[0].w, W / 3), rects[0].w);
 	const xs = active.pts.map(p => p.x);
-	ok('anchors are drawn through the split axis',
-		near(xs[0], 0) && near(xs[1], W / 6) && near(xs[xs.length - 1], W), xs.map(x => x.toFixed(1)).join(','));
-	ok('a segment crossing the split is cut there', xs.some(x => near(x, W / 3, 1e-3)), xs.map(x => x.toFixed(1)).join(','));
-	ok('  and the anchor past it lands on the extraction side', xs.some(x => near(x, W * 2 / 3)));
+	ok('anchors are drawn through the axis',
+		[0, 0.25, 0.75, 1].every(x => xs.some(px => near(px, toPx(x)))), xs.map(x => x.toFixed(1)).join(','));
 	let increasing = true;
 	for (let i = 1; i < xs.length; i++) if (!(xs[i] > xs[i - 1])) increasing = false;
 	ok('the path only moves rightwards', increasing);
-	// The pieces either side of the cut must meet, and meet smoothly: the tangent
-	// direction in data space is continuous, so both sides agree on the pressure slope
-	// once each is divided by its own zone's stretch.
-	const cut = active.pts.findIndex(p => near(p.x, W / 3, 1e-3));
-	const before = active.pts[cut], after = active.pts[cut + 1];
-	const slopeIn = (before.y - before.c2.y) / ((before.x - before.c2.x) / (1 / 3 / 0.5));
-	const slopeOut = (after.c1.y - before.y) / ((after.c1.x - before.x) / (2 / 3 / 0.5));
-	ok('  and the two pieces agree on the pressure slope at the cut', near(slopeIn, slopeOut, 1e-6),
-		slopeIn.toFixed(4) + ' vs ' + slopeOut.toFixed(4));
 
-	// Gridlines every 24ml: 24ml sits in pre-infusion, 96ml in extraction.
-	sb.crosshairX = -1;
-	render();
+	// Every join between drawn pieces must be smooth: the handles either side of it
+	// point in exactly opposite directions.
+	let worstTurn = 0;
+	for (let i = 1; i < active.pts.length - 1; i++) {
+		const p = active.pts[i], n = active.pts[i + 1];
+		const ax = p.x - p.c2.x, ay = p.y - p.c2.y, bx = n.c1.x - p.x, by = n.c1.y - p.y;
+		if (Math.hypot(ax, ay) === 0 || Math.hypot(bx, by) === 0) continue;
+		worstTurn = Math.max(worstTurn, Math.abs(ax * by - ay * bx) / (Math.hypot(ax, ay) * Math.hypot(bx, by)));
+	}
+	ok('the curve has no corners', worstTurn < 1e-6, worstTurn);
+
+	// And the drawn pieces must sit on the true curve, not merely near their ends.
+	const pts = [...sb.activeProfiles[0].controlPoints].sort((a, b) => a.x - b.x);
+	let worstPx = 0;
+	for (let i = 1; i < active.pts.length; i++) {
+		const a = active.pts[i - 1], b = active.pts[i];
+		const mx = (a.x + 3 * b.c1.x + 3 * b.c2.x + b.x) / 8, my = (a.y + 3 * b.c1.y + 3 * b.c2.y + b.y) / 8;
+		const truth = (1 - sb.sampleCurveAtX(pts, sb.screenToAxis(mx / W, SPLIT))) * H;
+		worstPx = Math.max(worstPx, Math.abs(truth - my));
+	}
+	ok('the drawn curve stays within half a pixel of the real one', worstPx < 0.5, worstPx.toFixed(4) + 'px');
+
+	// Gridlines every 24ml.
 	const grid = lines.filter(l => l.y === H).map(l => l.x);
-	ok('gridlines follow the axis', grid.some(x => near(x, (24 / 80) * W / 3)) &&
-		grid.some(x => near(x, W / 3 + ((96 - 80) / 80) * W * 2 / 3)), grid.map(x => x.toFixed(1)).join(','));
+	ok('gridlines follow the axis', [24, 48, 96, 144].every(ml => grid.some(x => near(x, toPx(ml / 160)))),
+		grid.map(x => x.toFixed(1)).join(','));
 }
 
 console.log('\n-- pointer --');
 {
 	setup();
-	sb.startEdit(ev(W * 2 / 3, H * 0.2));
+	sb.startEdit(ev(toPx(0.75), H * 0.2));
 	ok('the anchor past the split is grabbed where it is drawn', sb.draggingAnchorIndex === 2, sb.draggingAnchorIndex);
-	sb.endEdit(ev(W * 2 / 3, H * 0.2));
+	sb.endEdit(ev(toPx(0.75), H * 0.2));
 
 	setup();
 	sb.startEdit(ev(W / 4, H * 0.9));
 	const added = sb.activeProfiles[0].controlPoints[4];
-	ok('a point added in the pre-infusion zone gets its millilitre position', added && near(added.x, 0.375), added && added.x);
+	ok('a point added on the graph gets the millilitre position under the pointer',
+		added && near(toPx(added.x), W / 4), added && added.x);
 	sb.endEdit(ev(W / 4, H * 0.9));
 
 	setup();
 	sb.moveEdit(ev(1000, H / 2));
-	ok('the cursor reads the axis, not the raw pixel', near(sb.crosshairX, 0.5 + (1000 / W - 1 / 3) / (2 / 3) * 0.5), sb.crosshairX);
+	ok('the cursor reads the axis, not the raw pixel', near(toPx(sb.crosshairX), 1000), sb.crosshairX);
 	ok('  and the readout sits over the pointer', near(parseFloat(tooltip.style.left), 1000), tooltip.style.left);
-	ok('  quoting the millilitres there', /\b140 ml/.test(tooltip.textContent), tooltip.textContent);
+	ok('  quoting the millilitres there', tooltip.textContent.includes(Math.round(sb.crosshairX * 160) + ' ml'), tooltip.textContent);
 
-	// A handle is dragged at its anchor's own scale: 100px out from an extraction-side
-	// anchor is 100 / (1200 * 4/3) of the volume.
+	// A handle is dragged at its anchor's own scale.
 	setup();
 	const cp = sb.activeProfiles[0].controlPoints[2];
 	sb.activePointIndex = 2;
 	sb.draggingHandle = 'out';
-	sb.moveEdit(ev(W * 2 / 3 + 100, (1 - cp.y) * H));
-	ok('an out-handle drag is measured on the extraction scale', near(cp.cpxOut, 100 / (W * 4 / 3)), cp.cpxOut);
+	sb.moveEdit(ev(toPx(0.75) + 100, (1 - cp.y) * H));
+	ok('a handle drag is measured at its anchor\'s scale', near(cp.cpxOut, 100 / (W * sb.axisSlope(0.75, SPLIT))), cp.cpxOut);
 	sb.draggingHandle = null;
+}
+
+console.log('\n-- squeeze turned off --');
+{
+	setup();
+	sb.setSqueezePreInfusion(false);
+	const active = render();
+	ok('the zone goes back to its millilitre width', near(rects[0].w, W * 80 / 160), rects[0].w);
+	const xs = active.pts.map(p => p.x);
+	ok('anchors are drawn on a plain linear axis',
+		[0, 0.25, 0.75, 1].every(x => xs.some(px => near(px, x * W))), xs.map(x => x.toFixed(1)).join(','));
+	ok('  each segment as a single curve again', active.pts.length === 4, active.pts.length);
+	sb.moveEdit(ev(1000, H / 2));
+	ok('the cursor reads the raw pixel', near(sb.crosshairX, 1000 / W), sb.crosshairX);
+	sb.startEdit(ev(0.75 * W, H * 0.2));
+	ok('anchors are grabbed at their linear position', sb.draggingAnchorIndex === 2, sb.draggingAnchorIndex);
+	sb.endEdit(ev(0.75 * W, H * 0.2));
+
+	sb.setSqueezePreInfusion(true);
+	render();
+	ok('turning it back on restores the third', near(rects[0].w, W / 3), rects[0].w);
 }
 
 console.log(fail === 0 ? '\nall checks passed' : '\n' + fail + ' check(s) failed');

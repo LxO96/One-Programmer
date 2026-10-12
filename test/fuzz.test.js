@@ -5,7 +5,7 @@ const SRC = path.join(__dirname, '..', 'programmer.js');
 const sb = {
 	document: { addEventListener() {}, getElementById() { return null; } },
 	window: {}, console: { debug() {} }, Chart: function() {},
-	getPreInfusionMl: () => 80, drawZoneLabel: () => false,
+	getPreInfusionMl: () => 80, getSqueezePreInfusion: () => true, drawZoneLabel: () => false,
 };
 vm.createContext(sb);
 vm.runInContext(fs.readFileSync(SRC, 'utf8'), sb);

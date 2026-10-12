@@ -12,7 +12,11 @@ const WELCOME_KEY = 'cremOne.welcomeSeen';
 const DEFAULT_PRE_INFUSION_ML = 80;
 const MAX_PRE_INFUSION_ML = 240;
 
-var appSettings = { preInfusionMl: DEFAULT_PRE_INFUSION_ML };
+// Pre-infusion is drawn squeezed into the first third of the graph unless this is
+// turned off, which puts the whole axis back to one scale (see programmer.js).
+const DEFAULT_SQUEEZE_PRE_INFUSION = true;
+
+var appSettings = { preInfusionMl: DEFAULT_PRE_INFUSION_ML, squeezePreInfusion: DEFAULT_SQUEEZE_PRE_INFUSION };
 
 // The page is usually opened straight off disk over file://, where some browsers
 // treat the origin as opaque and throw on any localStorage access. Persistence is
@@ -48,6 +52,9 @@ function loadSettings() {
 			const parsed = JSON.parse(raw);
 			if (parsed && typeof parsed === 'object') {
 				appSettings.preInfusionMl = clampPreInfusion(parsed.preInfusionMl);
+				// Settings saved before this option existed have no field; only an
+				// explicit false turns the squeeze off.
+				appSettings.squeezePreInfusion = parsed.squeezePreInfusion !== false;
 				return appSettings;
 			}
 		} catch (e) {
@@ -55,6 +62,7 @@ function loadSettings() {
 		}
 	}
 	appSettings.preInfusionMl = DEFAULT_PRE_INFUSION_ML;
+	appSettings.squeezePreInfusion = DEFAULT_SQUEEZE_PRE_INFUSION;
 	return appSettings;
 }
 
@@ -68,6 +76,14 @@ function setPreInfusionMl(v) {
 	appSettings.preInfusionMl = clampPreInfusion(v);
 	saveSettings();
 	return appSettings.preInfusionMl;
+}
+
+function getSqueezePreInfusion() { return appSettings.squeezePreInfusion; }
+
+function setSqueezePreInfusion(on) {
+	appSettings.squeezePreInfusion = !!on;
+	saveSettings();
+	return appSettings.squeezePreInfusion;
 }
 
 function hasSeenWelcome() { return storageGet(WELCOME_KEY) === '1'; }
@@ -158,6 +174,8 @@ function runPendingConfirm() {
 function openSettings() {
 	const input = document.getElementById('preInfusionBox');
 	if (input) input.value = getPreInfusionMl();
+	const squeeze = document.getElementById('squeezePreInfusionBox');
+	if (squeeze) squeeze.checked = getSqueezePreInfusion();
 	openModal('settings-modal');
 }
 
@@ -165,6 +183,12 @@ function preInfusionInputUpdate() {
 	const input = document.getElementById('preInfusionBox');
 	const value = setPreInfusionMl(input.value);
 	input.value = value;
+	if (typeof drawCanvas === 'function') drawCanvas(activeProfileIndex);
+}
+
+function squeezeInputUpdate() {
+	const input = document.getElementById('squeezePreInfusionBox');
+	input.checked = setSqueezePreInfusion(input.checked);
 	if (typeof drawCanvas === 'function') drawCanvas(activeProfileIndex);
 }
 
@@ -194,6 +218,12 @@ function initOverlays() {
 		input.value = getPreInfusionMl();
 		input.addEventListener('change', preInfusionInputUpdate);
 		input.addEventListener('input', preInfusionInputUpdate);
+	}
+
+	const squeeze = document.getElementById('squeezePreInfusionBox');
+	if (squeeze) {
+		squeeze.checked = getSqueezePreInfusion();
+		squeeze.addEventListener('change', squeezeInputUpdate);
 	}
 
 	document.querySelectorAll('[data-close-modal]').forEach(function(el) {

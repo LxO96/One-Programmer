@@ -58,8 +58,9 @@ pulls the shot.
 
 Pre-infusion always takes the first third of the graph and extraction the other two
 thirds, whatever their lengths in millilitres, so the part of the shot you actually shape
-gets most of the room. Each zone is evenly scaled within itself; only the graph is
-squeezed — the curve and the exported pressures are still in plain millilitres.
+gets most of the room. The scale eases from one zone's to the other's around the border,
+so curves pass through it without a kink. Only the graph is squeezed — the curve and the
+exported pressures are still in plain millilitres.
 
 The four profiles you are *not* editing are drawn behind the active one in muted colour.
 They share the same millilitre axis rather than being stretched to the width of the graph,
@@ -163,6 +164,9 @@ defaults to the 80ml the machine itself uses.
 
 It is a drawing guide only — the profile file has no pre-infusion field, so this value is not
 exported to the machine. Change it only if your machine is set up differently.
+
+**Squeeze pre-infusion** (on by default) draws pre-infusion in the first third of the
+graph. Turn it off to draw every millilitre the same width.
 
 Settings are stored in `localStorage`. Opening the page over `file://` makes some browsers
 treat the origin as opaque and refuse storage entirely; the editor falls back to keeping

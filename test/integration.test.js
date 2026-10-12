@@ -82,7 +82,7 @@ ok('zone takes a third of the width', Math.abs(r.zone.w - 1200 / 3) < 0.5, r.zon
 sb.setPreInfusionMl(160);
 r = render();
 ok('zone keeps its third as the setting grows', Math.abs(r.zone.w - 1200 / 3) < 0.5, r.zone.w);
-ok('setting persisted', store.get('cremOne.settings') === '{"preInfusionMl":160}', store.get('cremOne.settings'));
+ok('setting persisted', JSON.parse(store.get('cremOne.settings')).preInfusionMl === 160, store.get('cremOne.settings'));
 
 sb.setPreInfusionMl(0);
 r = render();

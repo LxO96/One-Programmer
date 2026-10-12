@@ -377,9 +377,9 @@ function minHandleDrawPx() { return lastPointerType === 'touch' ? 46 : 26; }
 // direction, so either can supply it; a point with no tangent at all falls back to
 // the volume axis so it still shows two grabbable knobs.
 function handleOffsetPx(cp, which, w, h, split) {
-	// The axis is stretched differently either side of the pre-infusion split, so the
-	// handle is measured against the width per unit on its own side of the anchor.
-	w *= axisSlope(cp.x, split, which);
+	// The axis is stretched differently along its length, so the handle is measured
+	// against the width per unit at its anchor.
+	w *= axisSlope(cp.x, split);
 	let tx = cp.cpxOut, ty = cp.cpyOut;
 	if (tx === 0 && ty === 0) { tx = cp.cpxIn; ty = cp.cpyIn; }
 
@@ -514,11 +514,15 @@ function stepProfileSwitch() {
 // ── The volume axis ──
 //
 // Pre-infusion is long in millilitres but little happens in it, so a linear axis gave
-// it far more of the graph than it deserves. The axis is instead two linear pieces:
-// pre-infusion always gets the first third of the width, extraction the other two.
+// it far more of the graph than it deserves. Pre-infusion instead always gets the
+// first third of the width and extraction the other two. Each zone is linear, but a
+// hard change of scale at the split put a visible kink in every curve crossing it, so
+// the scale eases from one zone's to the other's across a band around the split.
 // Curves are still stored and exported in plain millilitres; only the drawing and the
 // pointer mapping pass through this.
 const PRE_INFUSION_SHARE = 1 / 3;
+// Half-width of the easing band, as a fraction of the shorter zone. Wider is gentler.
+const AXIS_BLEND = 0.5;
 
 // Normalized volume at which pre-infusion ends on an axis of `vol` millilitres. A
 // value of 0 or 1 means there is only one zone, and the axis is left linear.
@@ -527,87 +531,106 @@ function preInfusionSplit(vol) {
 	return Math.max(0, Math.min(1, getPreInfusionMl() / (vol - 1)));
 }
 
-function axisSplit(profileIndex) { return preInfusionSplit(axisVolume(profileIndex)); }
+// The split the axis is warped around: the pre-infusion split, or 0 — a plain linear
+// axis — when the squeeze is turned off in the settings.
+function warpSplit(vol) { return getSqueezePreInfusion() ? preInfusionSplit(vol) : 0; }
+
+function axisSplit(profileIndex) { return warpSplit(axisVolume(profileIndex)); }
 
 function isSplitAxis(split) { return split > 0 && split < 1; }
 
+// The axis is screen width per unit of volume integrated along x: sL across
+// pre-infusion, sR across extraction, ramping linearly from one to the other over
+// [s - d, s + d]. The ramp borrows width from both sides, so sL and sR are solved for
+// together such that the split still lands exactly on the third and the end on 1.
+function axisWarp(split) {
+	const s = split, d = AXIS_BLEND * Math.min(s, 1 - s);
+	const a = s - d / 4, b = d / 4, c = 1 - s - d / 4;
+	const det = a * c - b * b;
+	const sL = (PRE_INFUSION_SHARE * c - (1 - PRE_INFUSION_SHARE) * b) / det;
+	const sR = ((1 - PRE_INFUSION_SHARE) * a - PRE_INFUSION_SHARE * b) / det;
+	return { s: s, d: d, sL: sL, sR: sR };
+}
+
+function warpX(x, m) {
+	if (x <= m.s - m.d) return m.sL * x;
+	if (x >= m.s + m.d) return 1 - m.sR * (1 - x);
+	const u = x - (m.s - m.d);
+	return m.sL * (m.s - m.d) + m.sL * u + (m.sR - m.sL) * u * u / (4 * m.d);
+}
+
+function warpSlope(x, m) {
+	if (x <= m.s - m.d) return m.sL;
+	if (x >= m.s + m.d) return m.sR;
+	return m.sL + (m.sR - m.sL) * (x - (m.s - m.d)) / (2 * m.d);
+}
+
 // Normalized volume -> fraction of the canvas width. Values past 1 (a longer ghost
-// profile) carry on along the extraction piece rather than being clamped.
+// profile) carry on along the extraction scale rather than being clamped.
 function axisToScreen(x, split) {
-	if (!isSplitAxis(split)) return x;
-	if (x < split) return (x / split) * PRE_INFUSION_SHARE;
-	return PRE_INFUSION_SHARE + ((x - split) / (1 - split)) * (1 - PRE_INFUSION_SHARE);
+	return isSplitAxis(split) ? warpX(x, axisWarp(split)) : x;
 }
 
-function screenToAxis(s, split) {
-	if (!isSplitAxis(split)) return s;
-	if (s < PRE_INFUSION_SHARE) return (s / PRE_INFUSION_SHARE) * split;
-	return split + ((s - PRE_INFUSION_SHARE) / (1 - PRE_INFUSION_SHARE)) * (1 - split);
+function screenToAxis(sx, split) {
+	if (!isSplitAxis(split)) return sx;
+	const m = axisWarp(split);
+	// Either side of the band the axis is linear and inverts directly; inside it the
+	// warp is a monotonic quadratic, which a short bisection settles.
+	if (sx <= warpX(m.s - m.d, m)) return sx / m.sL;
+	if (sx >= warpX(m.s + m.d, m)) return 1 - (1 - sx) / m.sR;
+	let lo = m.s - m.d, hi = m.s + m.d;
+	for (let iter = 0; iter < 50; iter++) {
+		const mid = (lo + hi) / 2;
+		if (warpX(mid, m) < sx) lo = mid; else hi = mid;
+	}
+	return (lo + hi) / 2;
 }
 
-// Screen width per unit of normalized volume at x. At the split itself the axis has a
-// kink, so the side is chosen by which way the caller is looking: an out-handle reads
-// the extraction side, an in-handle the pre-infusion side.
-function axisSlope(x, split, side) {
-	if (!isSplitAxis(split)) return 1;
-	const left = side === 'in' ? x <= split : x < split;
-	return left ? PRE_INFUSION_SHARE / split : (1 - PRE_INFUSION_SHARE) / (1 - split);
+// Screen width per unit of normalized volume at x.
+function axisSlope(x, split) {
+	return isSplitAxis(split) ? warpSlope(x, axisWarp(split)) : 1;
 }
 
-// Splits the cubic p0..p3 at t by de Casteljau, returning the two halves.
-function splitCubic(p0, p1, p2, p3, t) {
-	const lerp = (a, b) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-	const a = lerp(p0, p1), b = lerp(p1, p2), c = lerp(p2, p3);
-	const d = lerp(a, b), e = lerp(b, c), m = lerp(d, e);
-	return [[p0, a, d, m], [m, e, c, p3]];
-}
+// Pieces a segment touching the easing band is cut into. Each piece is matched to the
+// warped curve in position and tangent at both ends, so the error between them is far
+// below a pixel and the joins are smooth.
+const WARP_PIECES = 24;
 
 // Traces one profile's curve into the current path. `k` maps that profile's own
 // normalized volume onto the canvas x-axis, which belongs to the profile being
 // edited — k is 1 for that one, and the ratio of volumes for a background profile.
-// The axis is linear either side of the split, so a segment that stays on one side
-// maps exactly as a bezier; one that crosses it is cut at the split first.
+// Away from the easing band the axis is linear, so a segment maps exactly as one
+// bezier; a segment touching the band is redrawn as several short ones.
 function traceProfile(ctx, points, w, h, k, split) {
 	const pts = [...points].sort((a, b) => a.x - b.x);
 	if (pts.length < 2) return false;
-	const sx = function(x, side) {
-		// Every control point of a piece is mapped with that piece's own side, so a
-		// handle reaching over the split still bends the curve as it would on a line.
-		if (!isSplitAxis(split)) return x * w;
-		const s = side === 'pre'
-			? (x / split) * PRE_INFUSION_SHARE
-			: PRE_INFUSION_SHARE + ((x - split) / (1 - split)) * (1 - PRE_INFUSION_SHARE);
-		return s * w;
-	};
-	const emit = function(c, side) {
-		ctx.bezierCurveTo(
-			sx(c[1].x, side), (1 - c[1].y) * h,
-			sx(c[2].x, side), (1 - c[2].y) * h,
-			sx(c[3].x, side), (1 - c[3].y) * h
-		);
-	};
-	ctx.moveTo(axisToScreen(pts[0].x * k, split) * w, (1 - pts[0].y) * h);
+	const m = isSplitAxis(split) ? axisWarp(split) : null;
+	const fx = x => (m ? warpX(x, m) : x) * w;
+	const dfx = x => (m ? warpSlope(x, m) : 1) * w;
+	ctx.moveTo(fx(pts[0].x * k), (1 - pts[0].y) * h);
 	for (let i = 0; i < pts.length - 1; i++) {
 		const p = pts[i], q = pts[i + 1];
-		const c = [
-			{ x: p.x * k, y: p.y },
-			{ x: (p.x + p.cpxOut) * k, y: p.y + p.cpyOut },
-			{ x: (q.x - q.cpxIn) * k, y: q.y - q.cpyIn },
-			{ x: q.x * k, y: q.y },
-		];
-		if (isSplitAxis(split) && c[0].x < split && c[3].x > split) {
-			// Handles never point backwards in x, so x(t) is monotonic and bisects cleanly.
-			let lo = 0, hi = 1;
-			for (let iter = 0; iter < 30; iter++) {
-				const t = (lo + hi) / 2, mt = 1 - t;
-				const x = mt*mt*mt*c[0].x + 3*mt*mt*t*c[1].x + 3*mt*t*t*c[2].x + t*t*t*c[3].x;
-				if (x < split) lo = t; else hi = t;
-			}
-			const halves = splitCubic(c[0], c[1], c[2], c[3], (lo + hi) / 2);
-			emit(halves[0], 'pre');
-			emit(halves[1], 'post');
-		} else {
-			emit(c, c[3].x <= split ? 'pre' : 'post');
+		const x0 = p.x * k, x1 = (p.x + p.cpxOut) * k, x2 = (q.x - q.cpxIn) * k, x3 = q.x * k;
+		const y0 = p.y, y1 = p.y + p.cpyOut, y2 = q.y - q.cpyIn, y3 = q.y;
+		const pieces = m && x3 > m.s - m.d && x0 < m.s + m.d ? WARP_PIECES : 1;
+		const at = function(t) {
+			const mt = 1 - t;
+			return {
+				x: mt*mt*mt*x0 + 3*mt*mt*t*x1 + 3*mt*t*t*x2 + t*t*t*x3,
+				y: mt*mt*mt*y0 + 3*mt*mt*t*y1 + 3*mt*t*t*y2 + t*t*t*y3,
+				dx: 3 * (mt*mt*(x1 - x0) + 2*mt*t*(x2 - x1) + t*t*(x3 - x2)),
+				dy: 3 * (mt*mt*(y1 - y0) + 2*mt*t*(y2 - y1) + t*t*(y3 - y2)),
+			};
+		};
+		let a = at(0);
+		for (let j = 1; j <= pieces; j++) {
+			const b = at(j / pieces), dt = 1 / pieces / 3;
+			ctx.bezierCurveTo(
+				fx(a.x) + dt * dfx(a.x) * a.dx, (1 - a.y - dt * a.dy) * h,
+				fx(b.x) - dt * dfx(b.x) * b.dx, (1 - b.y + dt * b.dy) * h,
+				fx(b.x), (1 - b.y) * h
+			);
+			a = b;
 		}
 	}
 	return true;
@@ -699,11 +722,11 @@ function drawCanvas(profileIndex) {
 
 	ctx.clearRect(0, 0, w, h);
 
-	// Pre-infusion zone — length is a global setting, purely a drawing guide. The axis
-	// gives it a fixed share of the width whatever its length in millilitres.
-	const split = preInfusionSplit(vol);
+	// Pre-infusion zone — length is a global setting, purely a drawing guide. With the
+	// squeeze on, the axis gives it a fixed share of the width whatever its length.
+	const split = warpSplit(vol);
 	const sx = function(x) { return axisToScreen(x, split) * w; };
-	const preW = split >= 1 ? w : split > 0 ? PRE_INFUSION_SHARE * w : 0;
+	const preW = sx(preInfusionSplit(vol));
 	ctx.fillStyle = 'rgba(55, 119, 255, 0.05)';
 	ctx.fillRect(0, 0, preW, h);
 
@@ -1053,7 +1076,7 @@ function moveEdit(e) {
 		// moment the knob crossed into the other zone.
 		const cp = profile.controlPoints[activePointIndex];
 		const ax = axisToScreen(cp.x, pos.split) * pos.w;
-		const handleX = cp.x + (pos.px - ax) / (pos.w * axisSlope(cp.x, pos.split, draggingHandle));
+		const handleX = cp.x + (pos.px - ax) / (pos.w * axisSlope(cp.x, pos.split));
 		dragHandle(cp, draggingHandle, handleX, pos.normY);
 		enforceMonotonicHandles(profile);
 	} else if (draggingAnchorIndex >= 0) {
